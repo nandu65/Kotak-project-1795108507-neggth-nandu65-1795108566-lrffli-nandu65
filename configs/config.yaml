@@ -1,0 +1,135 @@
+# Bayesian Regime Detection Engine - Configuration
+project:
+  name: "bayesian-regime-detection-APK"
+  version: "1.0.0"
+  random_seed: 42
+  confidential: true
+
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  interim_dir: "data/interim"
+  start_date: "2010-01-01"
+  end_date: null # Present
+  calendar_anchor: "NIFTY_50" # NSE calendar anchor
+
+  # Public tickers configuration
+  tickers:
+    nifty_50:
+      symbol: "^NSEI"
+      name: "Nifty 50"
+      asset_class: "equity_largecap"
+      mandatory: true
+    nifty_midcap_100:
+      symbol: "^CRSMID"
+      alt_symbol: "NIFTY_MIDCAP_100.NS"
+      name: "Nifty Midcap 100"
+      asset_class: "equity_midcap"
+      mandatory: true
+    nifty_smallcap_100:
+      symbol: "^CNXSC"
+      alt_symbol: "NIFTY_SMALLCAP_100.NS"
+      name: "Nifty Smallcap 100"
+      asset_class: "equity_smallcap"
+      mandatory: true
+    india_vix:
+      symbol: "^INDIAVIX"
+      name: "India VIX"
+      asset_class: "volatility"
+      mandatory: true
+    usdinr:
+      symbol: "INR=X"
+      alt_symbol: "USDINR=X"
+      name: "USD/INR"
+      asset_class: "fx"
+      mandatory: true
+    crude_oil:
+      symbol: "BZ=F"
+      alt_symbol: "CL=F"
+      name: "Brent Crude Oil"
+      asset_class: "commodity"
+      mandatory: true
+    sp500:
+      symbol: "^GSPC"
+      name: "S&P 500"
+      asset_class: "global_equity"
+      mandatory: true
+    dxy:
+      symbol: "DX-Y.NYB"
+      alt_symbol: "UUP"
+      name: "US Dollar Index"
+      asset_class: "global_fx"
+      mandatory: true
+    gilt_10y:
+      symbol: "^TNX" # Global yield proxy or manual RBI G-Sec series
+      alt_symbol: "IN10YT=RR"
+      name: "10Y G-Sec Yield"
+      asset_class: "fixed_income"
+      mandatory: false
+
+  # Publication lags in trading days (Point-In-Time discipline)
+  publication_lags:
+    macro_prints: 1 # Macro releases published next trading day
+    amfi_sip: 5     # Monthly AMFI SIP totals released 5-10 days after month-end
+    breadth_eod: 1  # Full market breadth known at post-market EOD
+    gilt_yield: 0   # Live sovereign yield close
+    usdinr: 0       # RBI reference / market close
+    global_macro: 1 # Overseas closes aligned to next Indian session
+
+  # Data alignment
+  max_ffill_limit: 3 # Maximum consecutive days to ffill global/macro data
+
+regimes:
+  count: 5
+  taxonomy:
+    0: "Risk-On"
+    1: "Late-Cycle"
+    2: "Transitional"
+    3: "Post-Shock"
+    4: "Risk-Off"
+  description:
+    Risk-On: "Sustained equity rally, broad participation, low volatility, positive flows"
+    Late-Cycle: "Expansion mature, narrow leadership, valuation stretched, signs of fatigue"
+    Transitional: "Regime boundary, conflicting macro indicators, low directional conviction"
+    Post-Shock: "Stabilisation following acute drawdown, volatility decay, base-building"
+    Risk-Off: "Drawdown, deteriorating macro, deleveraging, flight to quality"
+
+models:
+  hmm:
+    n_states: 5
+    covariance_type: "diag"
+    n_iter: 200
+    tol: 1.0e-5
+  bayesian_hmm:
+    alpha_diag: 8.0
+    alpha_off: 1.0
+    n_draws: 2000
+    n_tune: 1000
+    target_accept: 0.95
+    chains: 4
+  rsvar:
+    k_regimes: 5
+    lags: 1
+  bocpd:
+    hazard: 0.01 # 1 / 100 mean run length
+    mu0: 0.0
+    kappa0: 1.0
+    alpha0: 1.0
+    beta0: 1.0
+  particle_filter:
+    n_particles: 5000
+  conformal:
+    nominal_alpha: 0.10 # 90% coverage
+    aci_gamma: 0.01
+
+backtest:
+  train_min_days: 750 # ~3 years minimum training
+  step_size_days: 63  # Quarterly roll
+  kelly_fraction: 0.5
+  max_tilt: 0.10
+  no_trade_band: 0.015
+  transaction_cost_bps: 15.0
+
+tracking:
+  mlflow_tracking_uri: "mlruns"
+  experiment_name: "bayesian_regime_detection"
