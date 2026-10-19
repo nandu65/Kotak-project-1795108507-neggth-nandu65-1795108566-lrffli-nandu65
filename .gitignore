@@ -21,6 +21,7 @@ data/processed/*
 !data/processed/.gitkeep
 data/interim/*
 !data/interim/.gitkeep
+r/*.csv
 mlruns/
 .mlflow/
 
