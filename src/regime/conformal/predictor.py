@@ -230,3 +230,48 @@ class AdaptiveConformalInference:
             return 1.0 - self.alpha_target
         sub = self.coverage_history[-lookback:] if lookback else self.coverage_history
         return float(np.mean(sub))
+
+
+def evaluate_conformal_coverage(
+    in_set_mask: np.ndarray,
+    y_true: np.ndarray,
+    nominal_coverage: float = 0.90,
+    regime_names: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    r"""
+    Evaluate empirical coverage vs nominal (90%, 95%) overall and per regime (Step 7 requirement).
+
+    Args:
+        in_set_mask: (N, K) boolean inclusion mask.
+        y_true: (N,) true regime integer labels.
+        nominal_coverage: Nominal target (e.g. 0.90 or 0.95).
+        regime_names: Optional regime names list.
+
+    Returns:
+        Dict with overall coverage, per-regime coverage, mean set size, and gap.
+    """
+    N, K = in_set_mask.shape
+    names = regime_names or REGIME_NAMES[:K]
+
+    covered = np.array([in_set_mask[i, y_true[i]] for i in range(N)], dtype=float)
+    overall_cov = float(np.mean(covered))
+    mean_set_size = float(np.mean(np.sum(in_set_mask, axis=1)))
+
+    per_regime_cov = {}
+    for k in range(K):
+        mask_k = y_true == k
+        if np.sum(mask_k) > 0:
+            reg_cov = float(np.mean(in_set_mask[mask_k, k]))
+            per_regime_cov[names[k]] = float(np.round(reg_cov, 4))
+        else:
+            per_regime_cov[names[k]] = float(nominal_coverage)
+
+    return {
+        "nominal_coverage": float(nominal_coverage),
+        "empirical_coverage": float(np.round(overall_cov, 4)),
+        "coverage_gap": float(np.round(overall_cov - nominal_coverage, 4)),
+        "mean_set_size": float(np.round(mean_set_size, 3)),
+        "per_regime_coverage": per_regime_cov,
+        "is_valid": bool(overall_cov >= nominal_coverage - 0.05),
+    }
+

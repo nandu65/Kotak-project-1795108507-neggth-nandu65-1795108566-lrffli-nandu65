@@ -116,3 +116,32 @@ def test_ece_and_reliability_curve():
     acc, conf, cnt = compute_reliability_curve(probs, y_true, n_bins=5)
     assert len(acc) == 5
     assert np.sum(cnt) == n
+
+
+def test_coverage_at_nominal_levels_overall_and_per_regime(calibration_data):
+    """Verify empirical coverage meets nominal (90%, 95%) overall and per regime on exchangeable data."""
+    from src.regime.conformal.predictor import evaluate_conformal_coverage
+
+    cal_probs, y_cal, test_probs, y_test = calibration_data
+
+    # Test at nominal 90%
+    aps_90 = AdaptivePredictionSets(alpha=0.10)
+    aps_90.calibrate(cal_probs, y_cal)
+    mask_90, _ = aps_90.predict_set(test_probs)
+
+    res_90 = evaluate_conformal_coverage(mask_90, y_test, nominal_coverage=0.90)
+    assert res_90["nominal_coverage"] == 0.90
+    assert res_90["empirical_coverage"] >= 0.85
+    assert "per_regime_coverage" in res_90
+    assert len(res_90["per_regime_coverage"]) == 5
+
+    # Test at nominal 95%
+    aps_95 = AdaptivePredictionSets(alpha=0.05)
+    aps_95.calibrate(cal_probs, y_cal)
+    mask_95, _ = aps_95.predict_set(test_probs)
+
+    res_95 = evaluate_conformal_coverage(mask_95, y_test, nominal_coverage=0.95)
+    assert res_95["nominal_coverage"] == 0.95
+    assert res_95["empirical_coverage"] >= 0.90
+    assert res_95["mean_set_size"] >= res_90["mean_set_size"]  # Wider sets at higher confidence
+

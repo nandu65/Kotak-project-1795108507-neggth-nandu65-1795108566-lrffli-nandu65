@@ -148,4 +148,32 @@
   - Particle filters can experience sample impoverishment during sudden 10-sigma market gap opens; systematic resampling and variance floors mitigate particle collapse.
   - BOCPD hazard rate $\lambda=80$ is calibrated for Indian market volatility regimes; may need dynamic tuning during structural regulatory shifts (e.g., SEBI margin requirement overhauls).
 
+## Step 7: Conformal Prediction & Non-Stationary Calibration (src/regime/conformal/)
+- **What Was Built:**
+  - `src/regime/conformal/predictor.py`:
+    - Standard Split-Conformal Prediction (`SplitConformalClassifier`) with exact finite-sample coverage guarantees ($P(y \in C(x)) \ge 1 - \alpha$).
+    - Adaptive Prediction Sets (`AdaptivePredictionSets` - APS) sorting cumulative mass to produce compact, informative prediction sets for multi-class regimes.
+    - Online Adaptive Conformal Inference (`AdaptiveConformalInference` - ACI) updating nominal target $\alpha_{t+1} = \alpha_t + \gamma(\alpha - \text{err}_t)$ to guarantee long-run coverage under non-exchangeable distribution shifts.
+    - Expected Calibration Error (`compute_expected_calibration_error`) and reliability curve coordinate generation (`compute_reliability_curve`).
+    - Empirical coverage verification suite (`evaluate_conformal_coverage`) reporting coverage vs nominal (90%, 95%) overall and per regime.
+- **Real Test Output:**
+  ```text
+  ============================= test session starts =============================
+  platform win32 -- Python 3.14.3, pytest-9.1.1, pluggy-1.7.0
+  rootdir: D:\bayesian-regime-detection-APK
+  plugins: anyio-4.12.1
+  collected 5 items
+
+  tests/test_conformal.py::test_split_conformal_coverage PASSED            [ 20%]
+  tests/test_conformal.py::test_adaptive_prediction_sets PASSED            [ 40%]
+  tests/test_conformal.py::test_adaptive_conformal_inference_online PASSED [ 60%]
+  tests/test_conformal.py::test_ece_and_reliability_curve PASSED           [ 80%]
+  tests/test_conformal.py::test_coverage_at_nominal_levels_overall_and_per_regime PASSED [100%]
+
+  ============================== 5 passed in 2.19s ==============================
+  ```
+- **Known Weaknesses:**
+  - Standard split-conformal assumes exchangeability; during sudden macro regime transitions (e.g., March 2020), empirical coverage momentarily dips before ACI step updates adaptively widen the prediction sets.
+  - Rare regimes (e.g. Post-Shock) have smaller sample counts in calibration splits, resulting in slightly higher per-regime coverage variance than dominant states.
+
 ---

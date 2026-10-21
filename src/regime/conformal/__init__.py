@@ -5,6 +5,7 @@ from .predictor import (
     SplitConformalClassifier,
     compute_expected_calibration_error,
     compute_reliability_curve,
+    evaluate_conformal_coverage,
 )
 
 __all__ = [
@@ -13,4 +14,6 @@ __all__ = [
     "AdaptiveConformalInference",
     "compute_expected_calibration_error",
     "compute_reliability_curve",
+    "evaluate_conformal_coverage",
 ]
+
