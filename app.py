@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import pickle
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -58,7 +59,19 @@ REGIME_COLORS = {
 
 def initialize_engine():
     """Load datasets and pre-fit foundational models for instant API responses."""
-    logger.info("Initializing Bayesian Regime Detection Engine cache...")
+    cache_file = Path("data/processed/engine_cache.pkl")
+    if cache_file.exists():
+        try:
+            logger.info("Found precomputed cache %s. Loading...", cache_file)
+            with open(cache_file, "rb") as f:
+                saved = pickle.load(f)
+                CACHE.update(saved)
+            logger.info("Engine cache successfully loaded from disk in <0.05s.")
+            return
+        except Exception as e:
+            logger.warning("Cache load failed (%s), recomputing foundational models...", e)
+
+    logger.info("Initializing Bayesian Regime Detection Engine cache from source parquets...")
     pit_path = Path("data/processed/market_pit_dataset.parquet")
     feat_path = Path("data/processed/market_features_standardized.parquet")
 
@@ -128,6 +141,14 @@ def initialize_engine():
         "probs": hist_probs.tolist(),
     }
     logger.info("Engine cache successfully initialized with %d historical points.", len(hist_dates))
+
+    try:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_file, "wb") as f:
+            pickle.dump(CACHE, f)
+        logger.info("Persisted engine cache to %s for instant future startups.", cache_file)
+    except Exception as e:
+        logger.warning("Could not persist engine cache: %s", e)
 
 
 @app.on_event("startup")
