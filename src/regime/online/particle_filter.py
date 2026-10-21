@@ -47,6 +47,14 @@ class RegimeParticleFilter:
         self.particles = self.rng.integers(0, self.K, size=self.N)
         self.weights = np.full(self.N, 1.0 / self.N)
 
+    def update(self, new_day: float) -> np.ndarray:
+        r"""
+        Streaming update interface (PDF Section A9.1):
+            update(new_day) -> updated regime probabilities
+        """
+        post, _ = self.step(new_day)
+        return post
+
     def step(self, obs: float) -> Tuple[np.ndarray, float]:
         """
         Advance particle filter by one observation step.
@@ -64,13 +72,10 @@ class RegimeParticleFilter:
             return self.get_regime_posterior(), float(self.N)
 
         # 1. State propagation through Markov transition rows
-        new_particles = np.empty(self.N, dtype=int)
-        for i in range(self.N):
-            curr_state = self.particles[i]
-            # Transition probability vector for particle i
-            p_trans = self.P[curr_state]
-            new_particles[i] = self.rng.choice(self.K, p=p_trans)
-        self.particles = new_particles
+        # 1. Vectorized state propagation through Markov transition rows
+        cdf_P = np.cumsum(self.P, axis=1)  # (K, K)
+        u = self.rng.uniform(size=self.N)[:, None]  # (N, 1)
+        self.particles = np.clip(np.sum(u > cdf_P[self.particles], axis=1), 0, self.K - 1)
 
         # 2. Measurement re-weighting via Gaussian emission density
         diff = (obs - self.mu[self.particles]) / self.sigma[self.particles]

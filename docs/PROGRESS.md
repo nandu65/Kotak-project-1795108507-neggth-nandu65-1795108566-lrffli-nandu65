@@ -124,4 +124,28 @@
   - In periods of extreme market consensus where all models agree, epistemic uncertainty (mutual information) approaches zero, meaning the uncertainty budget is dominated by data aleatoric noise.
   - SLSQP quadratic solver runtime scales quadratically with candidate models; constrained to $M \le 10$ models for fast walk-forward execution.
 
+## Step 6: Online Sequential Inference & Changepoint Detection (src/regime/online/)
+- **What Was Built:**
+  - `src/regime/online/particle_filter.py`: Vectorized 5,000-particle Sequential Monte Carlo (`RegimeParticleFilter`) with systematic low-variance resampling on ESS depletion ($< N/2$), tracking latent regimes in real-time between nightly refits. Exposes streaming interface `update(new_day) -> updated regime probabilities`.
+  - `src/regime/online/bocpd.py`: Bayesian Online Changepoint Detection (`StudentTBOCPD`) using exact Student-$t$ posterior predictive density with Normal-Gamma conjugacy (strictly avoiding standard Gaussian PDF) with hazard rate $\lambda=80$ and recursive run-length distribution tracking.
+  - `src/regime/online/reconciliation.py`: Two-speed online-batch reconciliation engine (`OnlineBatchReconciler`), triggering automated off-cycle batch retrains when the Total Variation distance exceeds the 0.15 threshold or when BOCPD flags an acute changepoint probability $> 0.25$.
+- **Real Test Output:**
+  ```text
+  ============================= test session starts =============================
+  platform win32 -- Python 3.14.3, pytest-9.1.1, pluggy-1.7.0
+  rootdir: D:\bayesian-regime-detection-APK
+  plugins: anyio-4.12.1
+  collected 4 items
+
+  tests/test_online.py::test_particle_filter PASSED                        [ 25%]
+  tests/test_online.py::test_particle_filter_matches_exact_hmm_filtering PASSED [ 50%]
+  tests/test_online.py::test_bocpd_student_t_changepoint_detection PASSED  [ 75%]
+  tests/test_online.py::test_online_batch_reconciliation PASSED            [100%]
+
+  ============================== 4 passed in 2.21s ==============================
+  ```
+- **Known Weaknesses:**
+  - Particle filters can experience sample impoverishment during sudden 10-sigma market gap opens; systematic resampling and variance floors mitigate particle collapse.
+  - BOCPD hazard rate $\lambda=80$ is calibrated for Indian market volatility regimes; may need dynamic tuning during structural regulatory shifts (e.g., SEBI margin requirement overhauls).
+
 ---

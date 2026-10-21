@@ -21,13 +21,63 @@ def test_particle_filter():
 
     # Step through 10 observations with positive returns (should tilt to Risk-On)
     for _ in range(10):
-        post, ess = pf.step(0.002)
+        post = pf.update(0.002)
 
     assert post.shape == (5,)
     assert np.isclose(np.sum(post), 1.0)
-    assert ess > 0
     # State 0 (Risk-On) should have highest probability
     assert post[0] > post[-1]
+
+
+def test_particle_filter_matches_exact_hmm_filtering():
+    """Verify particle filter matches exact log-space forward HMM filtering on simulated data."""
+    rng = np.random.default_rng(42)
+    K = 2
+    # Simple 2-state persistent HMM
+    P = np.array([[0.85, 0.15], [0.20, 0.80]])
+    mu = np.array([0.005, -0.008])
+    sigma = np.array([0.010, 0.020])
+
+    # Simulate 50 steps
+    T = 50
+    states = np.zeros(T, dtype=int)
+    obs = np.zeros(T)
+    s = 0
+    for t in range(T):
+        s = rng.choice(K, p=P[s])
+        states[t] = s
+        obs[t] = rng.normal(mu[s], sigma[s])
+
+    # 1. Exact Forward HMM Filtering
+    log_alpha = np.zeros((T, K))
+    log_alpha[0] = -np.log(K) - 0.5 * np.log(2 * np.pi * sigma**2) - 0.5 * ((obs[0] - mu) / sigma)**2
+    log_alpha[0] -= np.log(np.sum(np.exp(log_alpha[0] - np.max(log_alpha[0])))) + np.max(log_alpha[0])
+
+    exact_filtered = np.zeros((T, K))
+    exact_filtered[0] = np.exp(log_alpha[0])
+
+    for t in range(1, T):
+        # Induction
+        log_emis = -0.5 * np.log(2 * np.pi * sigma**2) - 0.5 * ((obs[t] - mu) / sigma)**2
+        log_P = np.log(P)
+        for j in range(K):
+            terms = log_alpha[t - 1] + log_P[:, j]
+            m = np.max(terms)
+            log_alpha[t, j] = m + np.log(np.sum(np.exp(terms - m))) + log_emis[j]
+        m_tot = np.max(log_alpha[t])
+        log_alpha[t] -= m_tot + np.log(np.sum(np.exp(log_alpha[t] - m_tot)))
+        exact_filtered[t] = np.exp(log_alpha[t])
+
+    # 2. SMC Particle Filter
+    pf = RegimeParticleFilter(P, mu, sigma, n_particles=5000, seed=42)
+    pf_filtered = np.zeros((T, K))
+    for t in range(T):
+        pf_filtered[t] = pf.update(obs[t])
+
+    # Assert particle filter closely tracks exact HMM filtering within Monte Carlo tolerance
+    mae = np.mean(np.abs(pf_filtered - exact_filtered))
+    assert mae < 0.12, f"Particle filter deviated from exact HMM filtering: MAE={mae:.4f}"
+
 
 
 def test_bocpd_student_t_changepoint_detection():
