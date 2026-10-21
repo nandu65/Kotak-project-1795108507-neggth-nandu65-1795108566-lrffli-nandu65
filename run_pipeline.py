@@ -28,6 +28,7 @@ from src.regime.backtest.engine import (
     RegimeConditionedMC,
 )
 from src.regime.conformal.predictor import AdaptivePredictionSets
+from src.regime.labels.rule_based import compute_rule_based_regimes
 from src.regime.models.bnn_model import BayesianDeepEnsemble
 from src.regime.models.hmm_model import GaussianRegimeHMM
 from src.regime.online.bocpd import StudentTBOCPD
@@ -70,8 +71,10 @@ def run_pipeline() -> dict:
     # 3. Bayesian Deep Ensemble with MC-Dropout
     logger.info("Running Bayesian Deep Ensemble (M=4, epochs=10)...")
     bnn = BayesianDeepEnsemble(n_regimes=5, n_models=4, epochs=10, seed=42)
-    pseudo_labels = np.random.RandomState(42).randint(0, 5, size=len(recent_features))
-    bnn.fit(recent_features, pseudo_labels)
+    # Walk-forward targets from rule-based Section A1.4 ground truth
+    all_rule_labels = compute_rule_based_regimes(pit_df)
+    train_labels = all_rule_labels.loc[feat_df.index].dropna().astype(int).tail(1000).values
+    bnn.fit(recent_features, train_labels)
     bnn_probs_mat, epistemic_mat, aleatoric_mat = bnn.predict_with_uncertainty(recent_features[-1:])
     bnn_probs = bnn_probs_mat[0]
     epistemic_unc = float(np.mean(epistemic_mat[0]))
@@ -94,8 +97,9 @@ def run_pipeline() -> dict:
 
     # 6. Adaptive Conformal Prediction Set (APS)
     aps = AdaptivePredictionSets(alpha=0.10)
-    calib_probs = np.tile(ensembled_probs, (100, 1))
-    calib_labels = np.array([int(np.argmax(ensembled_probs))] * 100)
+    calib_features = recent_features[-200:]
+    calib_probs = bnn.predict_proba(calib_features)
+    calib_labels = train_labels[-200:]
     aps.calibrate(calib_probs, calib_labels)
     _, set_labels = aps.predict_set(ensembled_probs.reshape(1, -1))
     conf_set_names = set_labels[0]

@@ -80,30 +80,32 @@ Fitted parameters and empirical training frequencies (2010–2018 window, 2,201 
 
 ### 4.1 Walk-Forward Backtest Performance (2019–2024 OOS, 1,478 Sessions)
 All metrics generated directly by code and serialized to `reports/metrics.json`:
-- **Annualized Return (CAGR):** **12.07%** vs **13.26%** for Nifty 50 Buy-and-Hold (-1.19% / -119 bps cash drag during bull runs).
-- **Annualized Realized Volatility:** **15.26%** vs **18.50%** for Nifty 50 (-3.24% / -324 bps volatility compression).
-- **Sharpe Ratio ($R_f = 6.5\%$):** **0.3651** vs **0.3655** for benchmark (delta: -0.0004).
-- **Sortino Ratio:** **0.5328** (penalizes only left-tail downside volatility).
-- **Maximum Peak-to-Trough Drawdown:** **-34.02%** vs **-40.04%** for benchmark (**+6.02% / +602 bps capital preservation**).
-- **COVID-19 Episode (Jan–May 2020):** Strategy MDD **-34.02%** vs Benchmark **-40.04%** (+6.02% MDD saved, **+4.79% Alpha**).
-- **Information Ratio (IR):** **-0.3675** (Active tracking error: 3.24%).
-- **Annual Portfolio Turnover:** **1.96%** / year (suppressed via 1.5% no-trade band).
-- **Incurred Transaction Cost Drag (at 15 bps):** **0.29 bps** / year.
+- **Annualized Return (CAGR):** **12.30%** vs **13.26%** for Nifty 50 Buy-and-Hold (-0.97% / -97 bps cash drag during bull runs).
+- **Annualized Realized Volatility:** **15.75%** vs **18.50%** for Nifty 50 (-2.75% / -275 bps volatility compression).
+- **Sharpe Ratio ($R_f = 6.5\%$):** **0.3681** vs **0.3655** for benchmark (delta: +0.0026).
+- **Sortino Ratio:** **0.5367** (penalizes only left-tail downside volatility).
+- **Maximum Peak-to-Trough Drawdown:** **-35.04%** vs **-40.04%** for benchmark (**+5.00% / +500 bps capital preservation**).
+- **COVID-19 Episode (Jan–May 2020):** Strategy MDD **-35.51%** vs Benchmark **-40.04%** (+4.53% MDD saved, **+3.70% Alpha**).
+- **Information Ratio (IR):** **-0.3502** (Active tracking error: 2.76%).
+- **Annual Portfolio Turnover:** **5.02%** / year (suppressed via 1.5% no-trade band).
+- **Incurred Transaction Cost Drag (at 15 bps):** **0.75 bps** / year.
 
 ### 4.2 Statistical Overfitting Control
-- **Deflated Sharpe Ratio (DSR):** **0.0721** (adjusts for non-normality, kurtosis, and sample length $T = 1,478$).
-- **Probability of Backtest Overfitting (PBO):** Evaluated via CSCV across 16 sub-matrices: **1.0**.
+- **Deflated Sharpe Ratio (DSR):** **0.0730** (adjusts for non-normality, kurtosis, and sample length $T = 1,478$).
+- **Probability of Backtest Overfitting (PBO):** Evaluated via CSCV across 8 overlay parameter configurations: **0.0%** (lower is better; PBO > 50% indicates severe overfitting risk).
 
-### 4.3 Probabilistic Scoring & Calibration Diagnostics
-- **Log Loss:** **0.0000** (vs 0.1309 Climatology, 0.1102 Persistence).
-- **Brier Score:** **0.0000** (vs 0.0204 Climatology, 0.0149 Persistence).
-- **Ranked Probability Score (RPS):** **0.0000** (vs 0.0021 Climatology, 0.0019 Persistence).
-- **Expected Calibration Error (ECE):** **0.00%** (vs 12.02% Climatology, 9.86% Persistence).
+### 4.3 Probabilistic Scoring & Calibration Diagnostics (vs Independent Ground Truth)
+Evaluated out-of-sample against Section A1.4 independent rule-based ground-truth targets:
+- **Log Loss:** **2.4460** (vs 2.3304 Climatology, 2.9057 Persistence).
+- **Brier Score:** **0.9966** (vs 1.0032 Climatology, 1.3801 Persistence — Model outperforms both baselines).
+- **Ranked Probability Score (RPS):** **0.1900** (vs 0.2260 Climatology, 0.2302 Persistence — Model outperforms both baselines).
+- **Expected Calibration Error (ECE):** **34.67%** (vs 40.70% Climatology, 68.15% Persistence — Model outperforms both baselines).
 - **Conformal Empirical Coverage:**
-  - Nominal 90% target: **100.0%** empirical coverage (mean set size: 1.02 regimes).
-  - Nominal 95% target: **100.0%** empirical coverage (mean set size: 1.02 regimes).
-  - COVID-19 Drawdown Window: **100.0%** coverage.
-  - 2022 Global Rate Shock Window: **100.0%** coverage.
+  - Nominal 90% target: **97.50%** empirical coverage (mean set size: 4.84 regimes).
+  - Nominal 95% target: **97.50%** empirical coverage (mean set size: 4.84 regimes).
+  - COVID-19 Drawdown Window: **98.70%** coverage.
+  - 2022 Global Rate Shock Window: **96.77%** coverage.
+  - Minimum 63-day rolling coverage: **88.00%**.
 
 ---
 

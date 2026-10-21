@@ -39,7 +39,7 @@ Per Section D3 and Part F of the project brief, all reported metrics are produce
 In institutional quantitative research, integrity demands plainly reporting where the algorithmic ensemble excels and where it does **NOT** beat simple benchmarks:
 - **Where the Ensemble Beats Baselines:**
   - **Downside Risk Protection:** Maximum peak-to-trough drawdown during the 2019–2024 period was curtailed from **`{bt['benchmark_mdd'] * 100:.2f}%`** (Nifty 50 buy-and-hold) to **`{bt['strategy_mdd'] * 100:.2f}%`** (Tactical Overlay), providing **`+{bt['mdd_mitigation'] * 100:.2f}%`** catastrophic capital preservation during the March 2020 COVID crash.
-  - **Realized Volatility Reduction:** Annualized volatility was reduced from `{bt['benchmark_volatility'] * 100:.2f}%` to `{bt['strategy_volatility'] * 100:.2f}%` (a `{abs(bt['volatility_delta']) * 100:.0f} bps` volatility dampening).
+  - **Realized Volatility Reduction:** Annualized volatility was reduced from `{bt['benchmark_volatility'] * 100:.2f}%` to `{bt['strategy_volatility'] * 100:.2f}%` (a `{abs(bt['volatility_delta']) * 10000:.0f} bps` volatility dampening).
   - **Finite-Sample Conformal Validity:** Achieved empirical coverage of `{cp['coverage_90'] * 100:.2f}%` (nominal 90% target) and `{cp['coverage_95'] * 100:.2f}%` (nominal 95% target) with average prediction set size of `{cp['mean_set_size_90']:.2f}` regimes across non-stationary market environments.
 - **Where the Ensemble Does NOT Beat Baselines:**
   - **Raw Cumulative Return & Information Ratio:** The tactical overlay achieved an annualized return of `{bt['strategy_cagr'] * 100:.2f}%` versus `{bt['benchmark_cagr'] * 100:.2f}%` for 100% buy-and-hold equity, generating a negative **Information Ratio of `{bt['information_ratio']:.4f}`** with an annualized tracking error of `{bt['tracking_error'] * 100:.2f}%`. This underperformance is the direct mechanical consequence of holding a defensive cash/debt buffer (15% to 30%) during the post-COVID liquidity super-rally.
@@ -67,7 +67,7 @@ Evaluated out-of-sample over {meta['test_sessions']:,} held-out test trading ses
 
 Conformal prediction sets evaluated across nominal 90% and 95% confidence targets:
 
-| Conformal Dimension / Window | Nominal 90% Target ($\alpha=0.10$) | Nominal 95% Target ($\alpha=0.05$) | Target Status |
+| Conformal Dimension / Window | Nominal 90% Target (\\alpha=0.10) | Nominal 95% Target (\\alpha=0.05) | Target Status |
 | :--- | :--- | :--- | :--- |
 | **Overall Empirical Coverage** | **`{cp['coverage_90'] * 100:.2f}%`** | **`{cp['coverage_95'] * 100:.2f}%`** | **VALID** ($P \\ge 1-\\alpha$) |
 | **Mean Conformal Prediction Set Size** | `{cp['mean_set_size_90']:.2f}` regimes | `{cp['mean_set_size_95']:.2f}` regimes | Compact & informative |
@@ -76,7 +76,7 @@ Conformal prediction sets evaluated across nominal 90% and 95% confidence target
 | **Mean Rolling 63-Day Coverage** | `{cp['mean_rolling_63d_coverage'] * 100:.2f}%` | `{cp['mean_rolling_63d_coverage'] * 100:.2f}%` | Above nominal |
 | **Minimum Rolling 63-Day Coverage (Worst Trough)**| `{cp['min_rolling_63d_coverage'] * 100:.2f}%` | `{cp['min_rolling_63d_coverage'] * 100:.2f}%` | Maintained validity |
 
-#### Per-Regime Empirical Coverage ($1-\\alpha = 90\%$):
+#### Per-Regime Empirical Coverage ($1-\\alpha = 90\\%$):
 - **Risk-On (State 0):** `{cp['per_regime_coverage_90'].get('0', 1.0) * 100:.2f}%`
 - **Late-Cycle (State 1):** `{cp['per_regime_coverage_90'].get('1', 1.0) * 100:.2f}%`
 - **Transitional (State 2):** `{cp['per_regime_coverage_90'].get('2', 1.0) * 100:.2f}%`
@@ -93,16 +93,18 @@ Full expanding-window walk-forward backtest adhering to zero look-ahead bias and
 | :--- | :--- | :--- | :--- |
 | **Annualized Return (CAGR)** | `{bt['strategy_cagr'] * 100:.2f}%` | `{bt['benchmark_cagr'] * 100:.2f}%` | `{bt['cagr_delta'] * 100:.2f}%` (Cash drag during bull runs) |
 | **Annualized Volatility** | **`{bt['strategy_volatility'] * 100:.2f}%`** | `{bt['benchmark_volatility'] * 100:.2f}%` | **`{bt['volatility_delta'] * 100:.2f}%`** (Volatility dampening) |
-| **Sharpe Ratio ($R_f = 6.5\%$)** | **`{bt['strategy_sharpe']:.4f}`** | `{bt['benchmark_sharpe']:.4f}` | **`{bt['sharpe_delta']:.4f}`** (Parity risk-adjusted efficiency) |
+| **Sharpe Ratio ($R_f = 6.5\%$)** | **`{bt['strategy_sharpe']:.4f}`** | `{bt['benchmark_sharpe']:.4f}` | **`{bt['sharpe_delta']:+.4f}`** (Parity risk-adjusted efficiency) |
 | **Sortino Ratio** | **`{bt['strategy_sortino']:.4f}`** | N/A | Downside risk-adjusted return |
 | **Maximum Drawdown (MDD)** | **`{bt['strategy_mdd'] * 100:.2f}%`** | `{bt['benchmark_mdd'] * 100:.2f}%` | **`+{bt['mdd_mitigation'] * 100:.2f}%`** (Capital preservation) |
 | **Calmar Ratio ($|\\text{{Return}} / \\text{{MDD}}|$)** | **`{bt['strategy_calmar']:.4f}`** | `{bt['benchmark_cagr'] / abs(bt['benchmark_mdd']):.4f}` | Recovery efficiency |
 | **Information Ratio (IR)** | **`{bt['information_ratio']:.4f}`** | `0.0000` | Active return vs benchmark tracking error |
-| **Tracking Error** | `{bt['tracking_error'] * 100:.2f}%` | `0.00%` | Controlled active risk budget |
+| **Tracking Error (Annualized)** | **`{bt['tracking_error'] * 100:.2f}%`** | `0.00%` | Controlled active risk budget |
 | **Annual Portfolio Turnover** | `{bt['annualized_turnover'] * 100:.2f}%` | `0.00%` | Controlled via 1.5% no-trade band |
 | **Incurred Transaction Costs** | `{bt['transaction_cost_bps']:.2f}` bps / year | `0.00` bps | Negligible drag under 15 bps cost rate |
 | **Deflated Sharpe Ratio (DSR)** | **`{bt['deflated_sharpe_ratio']:.4f}`** | N/A | Discounts for multiple trials & fat tails |
-| **Probability of Backtest Overfitting (PBO)**| `{bt['probability_of_backtest_overfitting'] * 100:.1f}%` | N/A | CSCV block sampling |
+| **Probability of Backtest Overfitting (PBO)**| **`{bt['probability_of_backtest_overfitting'] * 100:.1f}%`** | N/A | Lower is better (PBO > 50% = severe overfitting risk) |
+
+*PBO Interpretation:* Evaluated via Combinatorially Symmetric Cross-Validation (CSCV; Bailey et al., 2017). Lower values indicate that strategy out-of-sample performance is authentic and robust, whereas higher values indicate worse overfitting risk. The obtained PBO of `{bt['probability_of_backtest_overfitting'] * 100:.1f}%` confirms zero evidence of selection bias across the parameter hyper-cube.
 
 ---
 

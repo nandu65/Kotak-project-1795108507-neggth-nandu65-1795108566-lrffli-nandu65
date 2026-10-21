@@ -24,6 +24,7 @@ from pydantic import BaseModel
 
 from src.regime.backtest.engine import AllocationOverlay, RegimeConditionedMC
 from src.regime.conformal.predictor import AdaptivePredictionSets
+from src.regime.labels.rule_based import compute_rule_based_regimes
 from src.regime.models.bnn_model import BayesianDeepEnsemble
 from src.regime.models.hmm_model import GaussianRegimeHMM
 from src.regime.online.bocpd import StudentTBOCPD
@@ -90,12 +91,13 @@ def initialize_engine():
     hmm = GaussianRegimeHMM(n_regimes=5, n_iter=25, seed=42)
     hmm.fit(clean_rets.reshape(-1, 1))
 
-    # 2. Fit Deep Ensemble on recent features
+    # 2. Fit Deep Ensemble on recent features with walk-forward rule-based targets
     feature_cols = [c for c in feat_df.columns if c not in ["Date", "target", "nifty_return"]][:12]
     recent_feat = feat_df[feature_cols].dropna().tail(1000).values
+    all_rule_labels = compute_rule_based_regimes(pit_df)
+    train_labels = all_rule_labels.loc[feat_df.index].dropna().astype(int).tail(1000).values
     bnn = BayesianDeepEnsemble(n_regimes=5, n_models=4, epochs=10, seed=42)
-    pseudo_labels = np.random.RandomState(42).randint(0, 5, size=len(recent_feat))
-    bnn.fit(recent_feat, pseudo_labels)
+    bnn.fit(recent_feat, train_labels)
 
     # 3. Setup BOCPD tracker
     bocpd = StudentTBOCPD(hazard=1.0 / 63.0)
@@ -104,9 +106,9 @@ def initialize_engine():
 
     # 4. Conformal APS
     aps = AdaptivePredictionSets(alpha=0.10)
-    # Calibrate on baseline probabilities
-    sample_probs = hmm.predict_proba(clean_rets[-200:].reshape(-1, 1))
-    sample_labels = np.argmax(sample_probs, axis=1)
+    # Calibrate on recent genuine features & labels
+    sample_probs = bnn.predict_proba(recent_feat[-200:])
+    sample_labels = train_labels[-200:]
     aps.calibrate(sample_probs, sample_labels)
 
     # 5. Monte Carlo Engine

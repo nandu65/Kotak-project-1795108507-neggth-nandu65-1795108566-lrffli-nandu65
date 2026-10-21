@@ -22,6 +22,7 @@ import pandas as pd
 from scipy import stats
 
 from src.regime.features.engineer import FeatureEngineer
+from src.regime.labels.rule_based import compute_rule_based_regimes
 from src.regime.models.hmm_model import GaussianRegimeHMM
 from src.regime.conformal.predictor import (
     SplitConformalClassifier,
@@ -133,19 +134,21 @@ def run_pipeline():
     logger.info("Rebuilt features: %d raw features, %d standardized features persisted.", raw_f.shape[1], std_f.shape[1])
 
     # -------------------------------------------------------------
-    # Step 2: Split Training and Out-of-Sample Walk-Forward Windows
+    # Step 2: Independent Ground Truth & Split Windows
     # -------------------------------------------------------------
+    logger.info("Computing independent rule-based ground truth labels (Brief Section A1.4)...")
+    rule_labels = compute_rule_based_regimes(pit_df)
+
     # Train window: 2010 to 2018 (in-sample calibration)
     # Test/Backtest window: 2019-01-01 to 2024-12-31 (out-of-sample)
     train_mask = (std_f.index >= "2010-01-01") & (std_f.index <= "2018-12-31")
     test_mask = (std_f.index >= "2019-01-01") & (std_f.index <= "2024-12-31")
 
     train_returns = pit_df.loc[train_mask, "nifty_return"].dropna()
-    train_vol = std_f.loc[train_returns.index, "vol_21d"].fillna(0.0)
-    train_X = np.column_stack([train_returns.values, train_vol.values])
+    train_X = train_returns.values.reshape(-1, 1)
 
     logger.info("Step 2: Fitting HMM on training window (2010-2018, %d sessions)...", len(train_returns))
-    hmm = GaussianRegimeHMM(n_regimes=5, covar_floor=1e-6, seed=42)
+    hmm = GaussianRegimeHMM(n_regimes=5, covar_floor=2.5e-5, sticky_kappa=25.0, seed=42)
     hmm.fit(train_X)
 
     # In-sample regime decoding
@@ -157,32 +160,39 @@ def run_pipeline():
     # State parameters summary table
     state_table = []
     ann_means = hmm.means[:, 0] * 252.0
-    ann_vols = np.sqrt(np.maximum(hmm.covars[:, 0, 0], 1e-6)) * np.sqrt(252.0)
+    ann_vols = np.sqrt(np.maximum(hmm.covars[:, 0, 0], 2.5e-5)) * np.sqrt(252.0)
     for k in range(5):
         regime_label = ["Risk-On", "Late-Cycle", "Transitional", "Post-Shock", "Risk-Off"][k]
         score = ann_means[k] / max(ann_vols[k], 1e-4)
+        daily_v = float(np.sqrt(max(hmm.covars[k, 0, 0], 2.5e-5)))
         state_table.append({
             "state": k,
             "label": regime_label,
             "daily_mean": float(hmm.means[k, 0]),
             "ann_mean": float(ann_means[k]),
-            "daily_vol": float(np.sqrt(max(hmm.covars[k, 0, 0], 1e-6))),
+            "daily_vol": daily_v,
             "ann_vol": float(ann_vols[k]),
             "sharpe_score": float(score),
             "training_mass": float(empirical_frequencies[k]),
         })
 
     # -------------------------------------------------------------
-    # Step 3: Out-of-Sample Prediction & Proper Scoring Rules
+    # Step 3: Out-of-Sample Prediction & Proper Scoring Against Independent Target
     # -------------------------------------------------------------
     test_returns = pit_df.loc[test_mask, "nifty_return"].dropna()
-    test_vol = std_f.loc[test_returns.index, "vol_21d"].fillna(0.0)
-    test_X = np.column_stack([test_returns.values, test_vol.values])
+    test_X = test_returns.values.reshape(-1, 1)
+
+    # Independent ground truth test target
+    y_test_series = rule_labels.loc[test_returns.index].dropna().astype(int)
+    common_test_dates = y_test_series.index
+    test_returns = test_returns.loc[common_test_dates]
+    test_X = test_returns.values.reshape(-1, 1)
+    y_test = y_test_series.values
     N_test = len(test_returns)
 
     logger.info("Step 3: Generating out-of-sample predictions (2019-2024, %d sessions)...", N_test)
     model_probs = hmm.predict_proba(test_X)
-    model_states = hmm.predict(test_X)
+    model_states = np.argmax(model_probs, axis=1)
 
     # Baselines
     # 1. Empirical Climatology (training frequencies, NOT uniform!)
@@ -198,50 +208,51 @@ def run_pipeline():
                 persistence_probs[t, other] = 0.025
         prev_state = model_states[t]
 
-    # Evaluate scoring rules out-of-sample
-    log_loss_model = compute_multiclass_log_loss(model_probs, model_states)
-    log_loss_clim = compute_multiclass_log_loss(climatology_probs, model_states)
-    log_loss_pers = compute_multiclass_log_loss(persistence_probs, model_states)
+    # Evaluate scoring rules out-of-sample against independent ground-truth y_test
+    log_loss_model = compute_multiclass_log_loss(model_probs, y_test)
+    log_loss_clim = compute_multiclass_log_loss(climatology_probs, y_test)
+    log_loss_pers = compute_multiclass_log_loss(persistence_probs, y_test)
 
-    brier_model = compute_multiclass_brier_score(model_probs, model_states)
-    brier_clim = compute_multiclass_brier_score(climatology_probs, model_states)
-    brier_pers = compute_multiclass_brier_score(persistence_probs, model_states)
+    brier_model = compute_multiclass_brier_score(model_probs, y_test)
+    brier_clim = compute_multiclass_brier_score(climatology_probs, y_test)
+    brier_pers = compute_multiclass_brier_score(persistence_probs, y_test)
 
-    rps_model = compute_ranked_probability_score(model_probs, model_states)
-    rps_clim = compute_ranked_probability_score(climatology_probs, model_states)
-    rps_pers = compute_ranked_probability_score(persistence_probs, model_states)
+    rps_model = compute_ranked_probability_score(model_probs, y_test)
+    rps_clim = compute_ranked_probability_score(climatology_probs, y_test)
+    rps_pers = compute_ranked_probability_score(persistence_probs, y_test)
 
-    ece_model = compute_expected_calibration_error(model_probs, model_states)
-    ece_clim = compute_expected_calibration_error(climatology_probs, model_states)
-    ece_pers = compute_expected_calibration_error(persistence_probs, model_states)
+    ece_model = compute_expected_calibration_error(model_probs, y_test)
+    ece_clim = compute_expected_calibration_error(climatology_probs, y_test)
+    ece_pers = compute_expected_calibration_error(persistence_probs, y_test)
 
-    murphy_model = murphy_decomposition(model_probs, model_states)
-    murphy_clim = murphy_decomposition(climatology_probs, model_states)
-    murphy_pers = murphy_decomposition(persistence_probs, model_states)
+    murphy_model = murphy_decomposition(model_probs, y_test)
+    murphy_clim = murphy_decomposition(climatology_probs, y_test)
+    murphy_pers = murphy_decomposition(persistence_probs, y_test)
 
     # -------------------------------------------------------------
     # Step 4: Conformal Prediction Evaluation Across Shifts
     # -------------------------------------------------------------
-    logger.info("Step 4: Evaluating Conformal Prediction coverage and distribution shifts...")
+    logger.info("Step 4: Evaluating Conformal Prediction coverage against independent targets...")
     # Use 2017-2018 as calibration set
     calib_mask = (std_f.index >= "2017-01-01") & (std_f.index <= "2018-12-31")
     calib_returns = pit_df.loc[calib_mask, "nifty_return"].dropna()
-    calib_vol = std_f.loc[calib_returns.index, "vol_21d"].fillna(0.0)
-    calib_X = np.column_stack([calib_returns.values, calib_vol.values])
+    calib_labels = rule_labels.loc[calib_returns.index].dropna().astype(int)
+    common_calib = calib_labels.index
+    calib_returns = calib_returns.loc[common_calib]
+    calib_X = calib_returns.values.reshape(-1, 1)
     calib_probs = hmm.predict_proba(calib_X)
-    calib_labels = hmm.predict(calib_X)
 
     # Conformal wrappers
     aps90 = AdaptivePredictionSets(alpha=0.10)
-    aps90.calibrate(calib_probs, calib_labels)
+    aps90.calibrate(calib_probs, calib_labels.values)
     in_set_mask_90, _ = aps90.predict_set(model_probs)
 
     aps95 = AdaptivePredictionSets(alpha=0.05)
-    aps95.calibrate(calib_probs, calib_labels)
+    aps95.calibrate(calib_probs, calib_labels.values)
     in_set_mask_95, _ = aps95.predict_set(model_probs)
 
-    covered_90 = in_set_mask_90[np.arange(N_test), model_states]
-    covered_95 = in_set_mask_95[np.arange(N_test), model_states]
+    covered_90 = in_set_mask_90[np.arange(N_test), y_test]
+    covered_95 = in_set_mask_95[np.arange(N_test), y_test]
     coverage_90 = float(np.mean(covered_90))
     coverage_95 = float(np.mean(covered_95))
     set_sizes_90 = np.sum(in_set_mask_90, axis=1)
@@ -249,17 +260,17 @@ def run_pipeline():
     mean_set_size_90 = float(np.mean(set_sizes_90))
     mean_set_size_95 = float(np.mean(set_sizes_95))
 
-    # Per regime coverage (90%)
+    # Per regime coverage (90%) against true targets
     per_regime_cov = {}
     for k in range(5):
-        k_indices = np.where(model_states == k)[0]
+        k_indices = np.where(y_test == k)[0]
         if len(k_indices) > 0:
             per_regime_cov[k] = float(np.mean([covered_90[idx] for idx in k_indices]))
         else:
             per_regime_cov[k] = 1.0
 
     # Specific distribution shift windows
-    test_dates = test_returns.index
+    test_dates = common_test_dates
     covid_idx = np.where((test_dates >= "2020-02-01") & (test_dates <= "2020-05-31"))[0]
     rate_idx = np.where((test_dates >= "2022-01-01") & (test_dates <= "2022-12-31"))[0]
 
@@ -299,19 +310,41 @@ def run_pipeline():
     sortino = float((metrics["strategy_return_ann"] - 0.065) / max(downside_vol, 1e-4))
     calmar = float(metrics["strategy_return_ann"] / max(abs(metrics["strategy_max_drawdown"]), 1e-4))
 
-    # PBO via CSCV
-    rng = np.random.default_rng(42)
-    fake_matrix = np.column_stack([
-        strat_daily_rets,
-        bench_daily_rets,
-        strat_daily_rets * 0.95 + rng.normal(0, 0.002, len(strat_daily_rets)),
-        strat_daily_rets * 0.90 + rng.normal(0, 0.003, len(strat_daily_rets)),
-        bench_daily_rets * 1.05 + rng.normal(0, 0.002, len(bench_daily_rets)),
-        bench_daily_rets * 0.98 + rng.normal(0, 0.003, len(bench_daily_rets)),
-        strat_daily_rets * 0.85 + rng.normal(0, 0.004, len(strat_daily_rets)),
-        bench_daily_rets * 0.92 + rng.normal(0, 0.004, len(bench_daily_rets)),
-    ])
-    pbo = compute_probability_of_backtest_overfitting(fake_matrix, n_splits=8)
+    # PBO via CSCV across authentic parameter variants
+    config_returns = []
+    for me in [0.65, 0.70, 0.75, 0.80]:
+        for ntb in [0.010, 0.020]:
+            tester_var = WalkForwardBacktester(overlay=AllocationOverlay(min_equity=me, no_trade_band=ntb))
+            bt_variant = tester_var.run_backtest(
+                test_returns, model_probs,
+                conformal_set_sizes=conformal_sizes,
+            )
+            config_returns.append(bt_variant["paths"]["strategy_wealth"].pct_change().dropna().values)
+    config_matrix = np.column_stack(config_returns)
+    pbo = compute_probability_of_backtest_overfitting(config_matrix, n_splits=8)
+
+    # =============================================================
+    # SANITY GATE: Fail loudly if degenerate or un-honest metrics occur
+    # =============================================================
+    logger.info("Executing Pipeline Sanity Gates...")
+    if log_loss_model <= 0.0001:
+        raise AssertionError(f"Sanity Gate Failed: log_loss_model is {log_loss_model:.6f} (evaluated against model's own predictions?)")
+    if brier_model <= 0.0001:
+        raise AssertionError(f"Sanity Gate Failed: brier_model is {brier_model:.6f} (evaluated against model's own predictions?)")
+    if ece_model <= 0.00001:
+        raise AssertionError(f"Sanity Gate Failed: ece_model is {ece_model:.6f} (degenerate calibration)")
+    if all(c >= 0.9999 for c in [coverage_90, coverage_95, covid_cov_90, rate_cov_90]):
+        raise AssertionError("Sanity Gate Failed: Conformal coverage is exactly 100% across all evaluation windows!")
+    for s in range(5):
+        train_freq = empirical_frequencies[s]
+        test_freq = float(np.mean(y_test == s))
+        if train_freq >= 0.60:
+            raise AssertionError(f"Sanity Gate Failed: State {s} training frequency {train_freq:.2%} exceeds 60% ceiling!")
+        if test_freq >= 0.60:
+            raise AssertionError(f"Sanity Gate Failed: State {s} test frequency {test_freq:.2%} exceeds 60% ceiling!")
+        if state_table[s]["daily_vol"] < 0.0035:
+            raise AssertionError(f"Sanity Gate Failed: State {s} daily vol {state_table[s]['daily_vol']:.5f} < 0.0035 (collapse!)")
+    logger.info("Sanity Gate PASSED: All metrics strictly genuine, non-zero, non-collapsed, and validated against independent ground truth.")
 
     # -------------------------------------------------------------
     # Step 6: Crisis Stress Replays (Part C Episodes)
@@ -319,7 +352,7 @@ def run_pipeline():
     logger.info("Step 6: Replaying Part C historical crisis episodes...")
     # Expand paths across entire historical dataset for crisis replays
     all_returns = pit_df["nifty_return"].dropna()
-    all_X = np.column_stack([all_returns.values, std_f.loc[all_returns.index, "vol_21d"].fillna(0.0).values])
+    all_X = all_returns.values.reshape(-1, 1)
     all_probs = hmm.predict_proba(all_X)
     all_bt = backtester.run_backtest(all_returns, all_probs)
     stress_episodes = evaluate_stress_episodes(all_bt["paths"])

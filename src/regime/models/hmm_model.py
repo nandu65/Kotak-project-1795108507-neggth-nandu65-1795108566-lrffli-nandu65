@@ -43,15 +43,21 @@ class GaussianRegimeHMM(BaseRegimeModel):
     def __init__(
         self,
         n_regimes: int = 5,
-        n_iter: int = 200,
-        tol: float = 1e-5,
-        covar_floor: float = 1e-4,
+        n_iter: int = 60,
+        tol: float = 1e-4,
+        covar_floor: float = 2.5e-5,
+        sticky_kappa: float = 25.0,
+        dirichlet_prior: float = 1.0,
         seed: int = 42,
     ) -> None:
         super().__init__(n_regimes=n_regimes, seed=seed)
         self.n_iter = n_iter
         self.tol = tol
-        self.covar_floor = covar_floor if covar_floor < 1e-4 else 1e-6
+        # Strict variance floor: daily vol >= 0.0050 (annualized >= 7.94%).
+        # Never accept a collapsed state with near-zero variance or volatility 0.001.
+        self.covar_floor = max(covar_floor, 2.5e-5)
+        self.sticky_kappa = sticky_kappa
+        self.dirichlet_prior = dirichlet_prior
 
         # Parameters
         self.pi: np.ndarray = np.ones(n_regimes) / n_regimes  # Initial distribution
@@ -73,7 +79,7 @@ class GaussianRegimeHMM(BaseRegimeModel):
 
     def fit(self, X: np.ndarray | pd.DataFrame, y: Optional[Any] = None) -> GaussianRegimeHMM:
         """
-        Fit the Gaussian HMM using the Baum-Welch (EM) algorithm.
+        Fit the Gaussian HMM using the Baum-Welch (EM) algorithm with sticky Dirichlet prior.
 
         Args:
             X: Returns or feature matrix of shape (T, d).
@@ -99,8 +105,8 @@ class GaussianRegimeHMM(BaseRegimeModel):
         q_bins = np.quantile(vol_1d, np.linspace(0.0, 1.0, K + 1))
 
         # Distinct initialisation: Risk-On (low vol, positive), to Risk-Off (high vol, negative)
-        init_mus = [0.0008, 0.0004, 0.0000, 0.0012, -0.0015]
-        init_vols = [0.006, 0.009, 0.012, 0.018, 0.030]
+        init_mus = [0.0012, 0.0006, 0.0001, -0.0005, -0.0025]
+        init_vols = [0.006, 0.008, 0.010, 0.015, 0.022]
 
         for k in range(K):
             idx = (vol_1d >= q_bins[k]) & (vol_1d <= q_bins[k + 1])
@@ -140,9 +146,12 @@ class GaussianRegimeHMM(BaseRegimeModel):
             xi = np.exp(np.clip(log_xi, -700, 0))
             xi_sum = np.sum(xi, axis=0)
 
-            # M-step: Parameter updates
+            # M-step: Parameter updates with sticky Dirichlet prior
             self.pi = gamma[0] / max(np.sum(gamma[0]), 1e-12)
-            self.A = xi_sum / np.maximum(gamma[:-1].sum(axis=0)[:, None], 1e-12)
+            prior_matrix = np.full((K, K), self.dirichlet_prior) + np.eye(K) * self.sticky_kappa
+            self.A = (xi_sum + prior_matrix) / (
+                gamma[:-1].sum(axis=0)[:, None] + np.sum(prior_matrix, axis=1, keepdims=True)
+            )
             self.A = self.A / np.sum(self.A, axis=1, keepdims=True)
 
             # Update means and diagonal covariances
