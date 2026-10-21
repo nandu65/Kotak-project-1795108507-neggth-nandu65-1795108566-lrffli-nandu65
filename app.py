@@ -396,6 +396,18 @@ def get_backtest_metrics() -> dict:
     }
 
 
+@app.get("/regime/health")
+def get_regime_health():
+    """Alias for /api/status."""
+    return get_status()
+
+
+@app.get("/regime/score")
+def get_regime_score():
+    """Alias for /api/regime/current."""
+    return get_current_regime()
+
+
 # ---------------------------------------------------------------------------
 # Dashboard Frontend Serving
 # ---------------------------------------------------------------------------
