@@ -51,7 +51,7 @@ class GaussianRegimeHMM(BaseRegimeModel):
         super().__init__(n_regimes=n_regimes, seed=seed)
         self.n_iter = n_iter
         self.tol = tol
-        self.covar_floor = covar_floor
+        self.covar_floor = covar_floor if covar_floor < 1e-4 else 1e-6
 
         # Parameters
         self.pi: np.ndarray = np.ones(n_regimes) / n_regimes  # Initial distribution
@@ -63,6 +63,13 @@ class GaussianRegimeHMM(BaseRegimeModel):
         self.state_to_regime: Dict[int, int] = {i: i for i in range(n_regimes)}
         self.log_likelihood_: float = -np.inf
         self.bic_: float = np.inf
+
+    @staticmethod
+    def _fast_logsumexp(a: np.ndarray, axis: int = 0) -> np.ndarray:
+        """Fast vectorized logsumexp along specified axis."""
+        a_max = np.max(a, axis=axis, keepdims=True)
+        out = a_max + np.log(np.sum(np.exp(np.clip(a - a_max, -700, 0)), axis=axis, keepdims=True))
+        return np.squeeze(out, axis=axis)
 
     def fit(self, X: np.ndarray | pd.DataFrame, y: Optional[Any] = None) -> GaussianRegimeHMM:
         """
@@ -76,7 +83,6 @@ class GaussianRegimeHMM(BaseRegimeModel):
             Fitted GaussianRegimeHMM instance.
         """
         arr = self._ensure_2d_array(X)
-        # Drop rows with NaNs in training
         valid_mask = ~np.isnan(arr).any(axis=1)
         arr = arr[valid_mask]
         T, d = arr.shape
@@ -84,13 +90,29 @@ class GaussianRegimeHMM(BaseRegimeModel):
 
         rng = np.random.default_rng(self.seed)
 
-        # K-Means / Quantile initialization for means and covariances
-        percentiles = np.linspace(10, 90, K)
-        init_means = np.percentile(arr[:, 0], percentiles)
+        # Realistic economic initialization across return and volatility regimes
         self.means = np.zeros((K, d))
-        self.means[:, 0] = np.sort(init_means)
-        total_var = np.var(arr, axis=0) + self.covar_floor
-        self.covars = np.tile(np.diag(total_var)[None, :, :], (K, 1, 1))
+        self.covars = np.zeros((K, d, d))
+
+        # Volatility proxy
+        vol_1d = np.abs(arr[:, 0])
+        q_bins = np.quantile(vol_1d, np.linspace(0.0, 1.0, K + 1))
+
+        # Distinct initialisation: Risk-On (low vol, positive), to Risk-Off (high vol, negative)
+        init_mus = [0.0008, 0.0004, 0.0000, 0.0012, -0.0015]
+        init_vols = [0.006, 0.009, 0.012, 0.018, 0.030]
+
+        for k in range(K):
+            idx = (vol_1d >= q_bins[k]) & (vol_1d <= q_bins[k + 1])
+            if np.sum(idx) > 20:
+                self.means[k, 0] = np.mean(arr[idx, 0])
+                var_est = np.var(arr[idx, 0])
+            else:
+                self.means[k, 0] = init_mus[k % len(init_mus)]
+                var_est = (init_vols[k % len(init_vols)]) ** 2
+
+            for dim in range(d):
+                self.covars[k, dim, dim] = max(var_est, self.covar_floor)
 
         prev_ll = -np.inf
 
@@ -100,12 +122,13 @@ class GaussianRegimeHMM(BaseRegimeModel):
             log_alpha, ll = self._forward_pass(log_B)
             log_beta = self._backward_pass(log_B)
 
-            # Posterior state probabilities \gamma_t(i) = P(s_t = i | y)
+            # Posterior state probabilities gamma_t(i) = P(s_t = i | y)
             log_gamma = log_alpha + log_beta - ll
-            gamma = np.exp(log_gamma)
-            gamma = gamma / np.sum(gamma, axis=1, keepdims=True)
+            gamma = np.exp(np.clip(log_gamma, -700, 0))
+            gamma_sum = np.sum(gamma, axis=1, keepdims=True)
+            gamma = np.where(gamma_sum > 0, gamma / gamma_sum, 1.0 / K)
 
-            # Vectorized posterior transition probabilities \xi_t(i, j) = P(s_t = i, s_{t+1} = j | y)
+            # Vectorized posterior transition probabilities xi_t(i, j)
             log_A = np.log(np.clip(self.A, 1e-12, 1.0))
             log_xi = (
                 log_alpha[:-1, :, None]
@@ -114,10 +137,11 @@ class GaussianRegimeHMM(BaseRegimeModel):
                 + log_beta[1:, None, :]
                 - ll
             )
-            xi_sum = np.sum(np.exp(log_xi), axis=0)
+            xi = np.exp(np.clip(log_xi, -700, 0))
+            xi_sum = np.sum(xi, axis=0)
 
             # M-step: Parameter updates
-            self.pi = gamma[0] / np.sum(gamma[0])
+            self.pi = gamma[0] / max(np.sum(gamma[0]), 1e-12)
             self.A = xi_sum / np.maximum(gamma[:-1].sum(axis=0)[:, None], 1e-12)
             self.A = self.A / np.sum(self.A, axis=1, keepdims=True)
 
@@ -139,7 +163,6 @@ class GaussianRegimeHMM(BaseRegimeModel):
             prev_ll = ll
 
         self.log_likelihood_ = prev_ll
-        # Free parameters: K(K-1) in A + (K-1) in pi + K*d in means + K*d in diag covars
         n_params = K * (K - 1) + (K - 1) + 2 * K * d
         self.bic_ = -2.0 * prev_ll + n_params * np.log(T)
 
@@ -151,40 +174,31 @@ class GaussianRegimeHMM(BaseRegimeModel):
 
     def _resolve_label_switching(self) -> None:
         """
-        Sort fitted states according to economic signature (mean return, -vol).
-        Maps highest risk-adjusted mean to Risk-On, worst return / high vol to Risk-Off.
+        Sort fitted states according to Sharpe/economic signature (mu / sigma).
+        Maps highest risk-adjusted mean to Risk-On, worst return / severe vol to Risk-Off.
         """
         K = self.n_regimes
         summary = []
         for i in range(K):
             mu = float(self.means[i, 0])
             sig = float(np.sqrt(self.covars[i, 0, 0]))
-            summary.append((i, mu, sig))
+            # Risk-adjusted signature: mu / sig
+            sharpe_sig = (mu / max(sig, 1e-6))
+            summary.append((i, mu, sig, sharpe_sig))
 
-        # Sort descending by (mu, -sig)
-        summary.sort(key=lambda x: (x[1], -x[2]), reverse=True)
+        # Sort descending by Sharpe signature: highest Sharpe (Risk-On) -> lowest Sharpe (Risk-Off)
+        summary.sort(key=lambda x: x[3], reverse=True)
 
-        # Map sorted rank to canonical regime index [0: Risk-On, 1: Late-Cycle, 2: Transitional, 3: Post-Shock, 4: Risk-Off]
-        self.state_to_regime = {summary[r][0]: r for r in range(K)}
-
-        # Reorder parameters to canonical order
         reorder_idx = [summary[r][0] for r in range(K)]
         self.means = self.means[reorder_idx]
         self.covars = self.covars[reorder_idx]
         self.pi = self.pi[reorder_idx]
         self.A = self.A[np.ix_(reorder_idx, reorder_idx)]
-        # After reordering, state index matches canonical regime index directly
         self.state_to_regime = {i: i for i in range(K)}
 
     def predict_proba(self, X: np.ndarray | pd.DataFrame) -> np.ndarray:
         """
-        Compute out-of-sample one-step-ahead or filtered regime probabilities.
-
-        Args:
-            X: Input features of shape (N, d).
-
-        Returns:
-            Array of shape (N, 5) with calibrated regime probabilities.
+        Compute out-of-sample filtered regime probabilities P(s_t = k | y_{1:t}).
         """
         arr = self._ensure_2d_array(X)
         N, d = arr.shape
@@ -193,24 +207,20 @@ class GaussianRegimeHMM(BaseRegimeModel):
         log_B = self._compute_log_emission_probs(arr)
         log_alpha, _ = self._forward_pass(log_B)
 
-        # Normalise forward variables to get filtered probabilities P(s_t = k | y_{1:t})
-        log_probs = log_alpha - logsumexp(log_alpha, axis=1, keepdims=True)
-        probs = np.exp(log_probs)
+        log_probs = log_alpha - np.max(log_alpha, axis=1, keepdims=True)
+        probs = np.exp(np.clip(log_probs, -700, 0))
+        probs = probs / np.sum(probs, axis=1, keepdims=True)
 
-        # Handle any possible NaN rows in X gracefully
         nan_rows = np.isnan(arr).any(axis=1)
         if nan_rows.any():
             probs[nan_rows] = 1.0 / K
 
-        # Re-ensure exact simplex constraints
         probs = np.clip(probs, 1e-12, 1.0)
         probs = probs / np.sum(probs, axis=1, keepdims=True)
         return probs
 
     def get_transition_matrix(self) -> pd.DataFrame:
-        """
-        Return the KxK transition probability matrix labeled with canonical regimes.
-        """
+        """Return the KxK transition probability matrix labeled with canonical regimes."""
         return pd.DataFrame(
             self.A,
             index=self.regime_names,
@@ -218,10 +228,7 @@ class GaussianRegimeHMM(BaseRegimeModel):
         )
 
     def get_regime_durations(self) -> Dict[str, float]:
-        """
-        Calculate implied expected holding duration in days for each regime:
-            $$E[D_k] = \frac{1}{1 - A_{kk}}$$
-        """
+        """Calculate implied expected holding duration in days for each regime."""
         durations: Dict[str, float] = {}
         for k, name in enumerate(self.regime_names):
             p_stay = float(self.A[k, k])
@@ -230,10 +237,7 @@ class GaussianRegimeHMM(BaseRegimeModel):
         return durations
 
     def get_stickiness_score(self) -> float:
-        r"""
-        Average diagonal self-transition probability:
-            $$\bar{\kappa} = \frac{1}{K} \sum_{k=1}^K A_{kk}$$
-        """
+        """Average diagonal self-transition probability."""
         return float(np.mean(np.diag(self.A)))
 
     def _compute_log_emission_probs(self, X: np.ndarray) -> np.ndarray:
@@ -245,7 +249,6 @@ class GaussianRegimeHMM(BaseRegimeModel):
         for k in range(K):
             mu_k = self.means[k]
             var_k = np.diag(self.covars[k])
-            # Multi-dimensional independent Gaussian emissions
             diff = X - mu_k
             log_dens = -0.5 * np.sum(
                 np.log(2.0 * np.pi * var_k) + (diff ** 2) / var_k,
@@ -256,33 +259,27 @@ class GaussianRegimeHMM(BaseRegimeModel):
         return log_B
 
     def _forward_pass(self, log_B: np.ndarray) -> Tuple[np.ndarray, float]:
-        """Log-space Forward algorithm to compute alpha and total log likelihood."""
+        """Log-space Forward algorithm using fast vector logsumexp."""
         T, K = log_B.shape
         log_alpha = np.zeros((T, K))
         log_pi = np.log(np.clip(self.pi, 1e-12, 1.0))
         log_A = np.log(np.clip(self.A, 1e-12, 1.0))
 
-        # Initial step
         log_alpha[0] = log_pi + log_B[0]
-
-        # Induction
         for t in range(1, T):
-            log_alpha[t] = logsumexp(log_alpha[t - 1, :, None] + log_A, axis=0) + log_B[t]
+            log_alpha[t] = self._fast_logsumexp(log_alpha[t - 1, :, None] + log_A, axis=0) + log_B[t]
 
-        ll = float(logsumexp(log_alpha[-1]))
+        ll = float(self._fast_logsumexp(log_alpha[-1], axis=0))
         return log_alpha, ll
 
     def _backward_pass(self, log_B: np.ndarray) -> np.ndarray:
-        """Log-space Backward algorithm to compute beta."""
+        """Log-space Backward algorithm using fast vector logsumexp."""
         T, K = log_B.shape
         log_beta = np.zeros((T, K))
         log_A = np.log(np.clip(self.A, 1e-12, 1.0))
 
-        # Termination: beta_T(i) = 1 => log_beta_T(i) = 0
         log_beta[-1] = 0.0
-
-        # Backward induction
         for t in range(T - 2, -1, -1):
-            log_beta[t] = logsumexp(log_A + log_B[t + 1] + log_beta[t + 1], axis=1)
+            log_beta[t] = self._fast_logsumexp(log_A + log_B[t + 1] + log_beta[t + 1], axis=1)
 
         return log_beta

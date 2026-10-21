@@ -42,10 +42,10 @@ Zero forward-fill enforced on returns and institutional flows.
 Weekend leakage: 0 rows. Is Clean: True.
 ```
 **Speaker Narration:**  
-> *"Everything starts with data hygiene. Here, our downloader ingests 16 years of daily data covering Nifty 50, Midcap 100, Smallcap 100, India VIX, USD/INR, 10-year G-Sec yields, crude oil, and US benchmarks. Notice the point-in-time discipline: all global and macro feeds are mapped to the official NSE trading calendar.*  
+> *"Everything starts with data hygiene. Here, our downloader ingests 16 years of daily data covering Nifty 50, Midcap 50, Smallcap 250, India VIX, USD/INR, Brent crude, and US benchmarks. Notice the point-in-time discipline: all global and macro feeds are mapped to the official NSE trading calendar.*  
 >  
-> *Macro prints and EOD market breadth are shifted forward by their true publication delay of 1 trading day; AMFI monthly SIP totals are lagged by 5 days. We enforce a hard rule: continuous macro levels may be forward-filled up to a strict limit of 3 sessions, but returns and institutional flow counts are NEVER forward-filled. As shown in the audit report, weekend leakage is exactly zero."*
-
+> *Macro prints are shifted forward by their true publication delay of 1 trading day; AMFI monthly SIP totals are lagged by 5 days. We enforce a hard rule: continuous macro levels may be forward-filled up to a strict limit of 3 sessions, but returns are NEVER forward-filled. As shown in the audit report, weekend leakage is exactly zero."*
+ 
 ---
 
 ### [2:30 – 3:45] Causal Feature Engineering & Expanding-Window Standardisation
@@ -56,11 +56,12 @@ python -m src.regime.features.engineer
 ```
 **Expected Console Output:**
 ```text
-Standardising 42 features using strictly causal expanding-window statistics.
-Persisted: 4,124 rows x 42 columns to data/processed/market_features_standardized.parquet.
+Standardising 66 features using strictly causal expanding-window statistics.
+Persisted: 4,124 rows x 66 columns to data/processed/features.parquet.
 ```
 **Speaker Narration:**  
-> *"Here our pipeline constructs 42 economically motivated features. These are not anonymous statistical columns. They capture the transmission mechanisms of the Indian market:*  
+> *"Here our pipeline constructs 66 economically motivated features without synthetic dependencies. These capture the authentic transmission mechanisms of the Indian market:*  
+
 > *1. Return momentum and 252-day peak drawdowns.*  
 > *2. India VIX term dynamics and implied-to-realised volatility ratios.*  
 > *3. Market breadth, including the 10-day advance/decline thrust.*  
@@ -146,9 +147,10 @@ import pprint; pprint.pprint(contract)
 **Speaker Narration:**  
 > *"Regime probabilities are an input, not an output. Their value is realized only when they change a portfolio decision.*  
 >  
-> *Our tactical overlay respects SEBI long-only bounds ($[0.70, 1.00]$). In Risk-On, we hold 100% equity; in Late-Cycle, we trim to 85%; in Risk-Off, we move to the 70% equity floor, building a 30% defensive cash buffer. Tilts are scaled by conformal conviction and passed through a 1.5% no-trade band to suppress churn.*  
+> *Our tactical overlay respects our internal AMC policy allocation bounds ($[0.70, 1.00]$ equity to maintain Section 115T tax efficiency while allowing a 30% defensive liquidity buffer). In Risk-On, we hold 100% equity; in Late-Cycle, 85%; in Transitional, 80%; in Post-Shock, 90%; in Risk-Off, we move to the 70% equity floor. Tilts are scaled by conviction and passed through a 1.5% no-trade band to suppress churn.*  
 >  
-> *The walk-forward results over 2019–2024: +18.85% annualised return vs +15.42% for the buy-and-hold benchmark (+3.43% alpha). More importantly, during the COVID shock of March 2020, our strategy drew down only -19.1% against the benchmark's -37.6%. Net of 15 bps transaction costs, our Information Ratio is +0.642, and our Deflated Sharpe Ratio is 0.968, proving that this performance is not a statistical fluke."*
+> *The walk-forward results over 2019–2024: 12.07% annualized return vs 13.26% for the buy-and-hold benchmark (-119 bps cash drag during bull runs). But critically, during the catastrophic COVID shock of March 2020, our strategy curtailed peak drawdown from -40.04% to -34.02%, saving 602 bps of principal (+4.79% crisis alpha). Portfolio realized volatility was dampened by 324 bps (15.26% vs 18.50%). Net of 15 bps transaction costs, our Information Ratio is -0.3675 with 3.24% tracking error and an ultra-low 1.96% annual turnover."*
+
 
 ---
 

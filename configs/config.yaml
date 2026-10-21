@@ -25,13 +25,13 @@ data:
     nifty_midcap_100:
       symbol: "^NSEMDCP50"
       alt_symbols: ["MID150BEES.NS", "NIFTYMIDCAP150.NS", "^CRSMID"]
-      name: "Nifty Midcap"
+      name: "Nifty Midcap 50"
       asset_class: "equity_midcap"
       mandatory: true
     nifty_smallcap_100:
-      symbol: "HDFCSML250.NS"
-      alt_symbols: ["^CNXSC", "NIFTY_SMALLCAP_100.NS"]
-      name: "Nifty Smallcap"
+      symbol: "NIFTYSMLCAP250.NS"
+      alt_symbols: ["HDFCSML250.NS", "^CNXSC"]
+      name: "Nifty Smallcap 250"
       asset_class: "equity_smallcap"
       mandatory: true
     india_vix:
@@ -67,8 +67,8 @@ data:
     gilt_10y:
       symbol: "^TNX"
       alt_symbols: ["IN10YT=RR"]
-      name: "10Y Sovereign Yield"
-      asset_class: "fixed_income"
+      name: "US 10Y Treasury Yield Proxy"
+      asset_class: "global_macro_yield"
       mandatory: false
 
   # Publication lags in trading days (Point-In-Time discipline)

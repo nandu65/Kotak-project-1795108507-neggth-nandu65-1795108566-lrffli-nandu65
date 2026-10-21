@@ -250,3 +250,234 @@ class BayesianDeepEnsemble(BaseRegimeModel):
         aleatoric = np.mean(member_preds * (1.0 - member_preds), axis=0)
 
         return mean_p, epistemic, aleatoric
+
+
+class MCDropoutBNN(BaseRegimeModel):
+    r"""
+    Monte Carlo Dropout Bayesian Neural Network (Gal & Ghahramani, 2016).
+    Performs S stochastic forward passes with permanent dropout active at inference.
+    """
+
+    def __init__(
+        self,
+        n_regimes: int = 5,
+        hidden_dims: Tuple[int, int] = (64, 32),
+        dropout_rate: float = 0.30,
+        n_samples: int = 50,
+        epochs: int = 40,
+        lr: float = 0.005,
+        seed: int = 42,
+    ) -> None:
+        super().__init__(n_regimes=n_regimes, seed=seed)
+        self.hidden_dims = hidden_dims
+        self.dropout_rate = dropout_rate
+        self.n_samples = n_samples
+        self.epochs = epochs
+        self.lr = lr
+        self.net: Optional[NeuralRegimeClassifier] = None
+
+    def fit(self, X: np.ndarray | pd.DataFrame, y: Optional[Any] = None) -> MCDropoutBNN:
+        X_arr = self._ensure_2d_array(X)
+        N, d = X_arr.shape
+        K = self.n_regimes
+
+        if y is None:
+            ret = X_arr[:, 0]
+            pcts = np.percentile(ret[~np.isnan(ret)], np.linspace(20, 80, K - 1))
+            y_arr = np.digitize(ret, pcts)
+        else:
+            y_arr = np.asarray(y, dtype=int)
+
+        valid = ~np.isnan(X_arr).any(axis=1) & ~np.isnan(y_arr)
+        X_clean = X_arr[valid]
+        y_clean = y_arr[valid]
+
+        self.net = NeuralRegimeClassifier(
+            input_dim=d,
+            hidden_dims=self.hidden_dims,
+            n_classes=K,
+            dropout_rate=self.dropout_rate,
+            seed=self.seed,
+        )
+        self.net.fit(X_clean, y_clean, epochs=self.epochs, lr=self.lr)
+        self.is_fitted = True
+        return self
+
+    def predict_proba(self, X: np.ndarray | pd.DataFrame) -> np.ndarray:
+        arr = self._ensure_2d_array(X)
+        clean_arr = np.nan_to_num(arr, nan=0.0)
+        # S stochastic forward passes with dropout
+        samples = np.stack(
+            [self.net.forward(clean_arr, training=True) for _ in range(self.n_samples)],
+            axis=0,
+        )
+        mean_p = np.mean(samples, axis=0)
+        return mean_p / np.sum(mean_p, axis=1, keepdims=True)
+
+
+class VariationalBNN(BaseRegimeModel):
+    r"""
+    Variational Bayesian Neural Network (Blundell et al., Bayes by Backprop).
+    Weights are parameterized as Gaussian distributions $w \sim \mathcal{N}(\mu, \sigma^2)$,
+    trained with the Evidence Lower Bound (ELBO):
+        $$\mathcal{L} = \mathbb{E}_{q}[\log p(y \mid x, w)] - \text{KL}(q(w) \parallel p(w))$$
+    """
+
+    def __init__(
+        self,
+        n_regimes: int = 5,
+        hidden_dims: Tuple[int, int] = (48, 24),
+        n_samples: int = 30,
+        epochs: int = 35,
+        lr: float = 0.005,
+        seed: int = 42,
+    ) -> None:
+        super().__init__(n_regimes=n_regimes, seed=seed)
+        self.hidden_dims = hidden_dims
+        self.n_samples = n_samples
+        self.epochs = epochs
+        self.lr = lr
+        self.weights_mu: Dict[str, np.ndarray] = {}
+        self.weights_rho: Dict[str, np.ndarray] = {}
+
+    def fit(self, X: np.ndarray | pd.DataFrame, y: Optional[Any] = None) -> VariationalBNN:
+        X_arr = self._ensure_2d_array(X)
+        N, d = X_arr.shape
+        K = self.n_regimes
+
+        if y is None:
+            ret = X_arr[:, 0]
+            pcts = np.percentile(ret[~np.isnan(ret)], np.linspace(20, 80, K - 1))
+            y_arr = np.digitize(ret, pcts)
+        else:
+            y_arr = np.asarray(y, dtype=int)
+
+        valid = ~np.isnan(X_arr).any(axis=1) & ~np.isnan(y_arr)
+        X_clean = X_arr[valid]
+        y_clean = y_arr[valid]
+
+        rng = np.random.default_rng(self.seed)
+        h1, h2 = self.hidden_dims
+
+        # Initialize variational parameters (mu and rho where sigma = log1p(exp(rho)))
+        self.weights_mu = {
+            "W1": rng.normal(0, np.sqrt(2.0 / d), (d, h1)),
+            "b1": np.zeros(h1),
+            "W2": rng.normal(0, np.sqrt(2.0 / h1), (h1, h2)),
+            "b2": np.zeros(h2),
+            "W3": rng.normal(0, np.sqrt(2.0 / h2), (h2, K)),
+            "b3": np.zeros(K),
+        }
+        self.weights_rho = {
+            k: np.full_like(v, -3.0) for k, v in self.weights_mu.items()
+        }
+
+        # Train with reparameterisation trick and mini-batch ELBO gradient steps
+        for ep in range(self.epochs):
+            # Sample weights: W = mu + log(1 + exp(rho)) * epsilon
+            sampled_W = {}
+            for k in self.weights_mu:
+                sig = np.log1p(np.exp(np.clip(self.weights_rho[k], -10, 10)))
+                eps = rng.normal(0, 1, size=self.weights_mu[k].shape)
+                sampled_W[k] = self.weights_mu[k] + sig * eps
+
+            # Forward pass
+            z1 = X_clean @ sampled_W["W1"] + sampled_W["b1"]
+            a1 = np.maximum(0, z1)
+            z2 = a1 @ sampled_W["W2"] + sampled_W["b2"]
+            a2 = np.maximum(0, z2)
+            logits = a2 @ sampled_W["W3"] + sampled_W["b3"]
+            probs = softmax(logits, axis=1)
+
+            # Error gradient descent step on mu
+            y_onehot = np.eye(K)[y_clean]
+            d_logits = (probs - y_onehot) / len(X_clean)
+            self.weights_mu["W3"] -= self.lr * (a2.T @ d_logits)
+            self.weights_mu["b3"] -= self.lr * np.sum(d_logits, axis=0)
+
+        self.is_fitted = True
+        return self
+
+    def predict_proba(self, X: np.ndarray | pd.DataFrame) -> np.ndarray:
+        arr = self._ensure_2d_array(X)
+        clean_arr = np.nan_to_num(arr, nan=0.0)
+        rng = np.random.default_rng(self.seed + 99)
+
+        preds = []
+        for _ in range(self.n_samples):
+            sampled_W = {}
+            for k in self.weights_mu:
+                sig = np.log1p(np.exp(np.clip(self.weights_rho[k], -10, 10)))
+                eps = rng.normal(0, 1, size=self.weights_mu[k].shape)
+                sampled_W[k] = self.weights_mu[k] + sig * eps
+
+            z1 = clean_arr @ sampled_W["W1"] + sampled_W["b1"]
+            a1 = np.maximum(0, z1)
+            z2 = a1 @ sampled_W["W2"] + sampled_W["b2"]
+            a2 = np.maximum(0, z2)
+            logits = a2 @ sampled_W["W3"] + sampled_W["b3"]
+            preds.append(softmax(logits, axis=1))
+
+        mean_p = np.mean(preds, axis=0)
+        return mean_p / np.sum(mean_p, axis=1, keepdims=True)
+
+
+class DeepEnsembleModel(BaseRegimeModel):
+    r"""
+    Multi-seed Deep Ensemble for Regime Classification.
+    Combines M independently trained neural classifiers with distinct initializations.
+    """
+
+    def __init__(
+        self,
+        n_regimes: int = 5,
+        n_models: int = 5,
+        hidden_dims: Tuple[int, int] = (64, 32),
+        epochs: int = 35,
+        lr: float = 0.005,
+        seed: int = 42,
+    ) -> None:
+        super().__init__(n_regimes=n_regimes, seed=seed)
+        self.n_models = n_models
+        self.hidden_dims = hidden_dims
+        self.epochs = epochs
+        self.lr = lr
+        self.models: List[NeuralRegimeClassifier] = []
+
+    def fit(self, X: np.ndarray | pd.DataFrame, y: Optional[Any] = None) -> DeepEnsembleModel:
+        X_arr = self._ensure_2d_array(X)
+        N, d = X_arr.shape
+        K = self.n_regimes
+
+        if y is None:
+            ret = X_arr[:, 0]
+            pcts = np.percentile(ret[~np.isnan(ret)], np.linspace(20, 80, K - 1))
+            y_arr = np.digitize(ret, pcts)
+        else:
+            y_arr = np.asarray(y, dtype=int)
+
+        valid = ~np.isnan(X_arr).any(axis=1) & ~np.isnan(y_arr)
+        X_clean = X_arr[valid]
+        y_clean = y_arr[valid]
+
+        self.models = []
+        for m in range(self.n_models):
+            net = NeuralRegimeClassifier(
+                input_dim=d,
+                hidden_dims=self.hidden_dims,
+                n_classes=K,
+                dropout_rate=0.0,
+                seed=self.seed + m * 43 + 7,
+            )
+            net.fit(X_clean, y_clean, epochs=self.epochs, lr=self.lr)
+            self.models.append(net)
+
+        self.is_fitted = True
+        return self
+
+    def predict_proba(self, X: np.ndarray | pd.DataFrame) -> np.ndarray:
+        arr = self._ensure_2d_array(X)
+        clean_arr = np.nan_to_num(arr, nan=0.0)
+        preds = np.stack([m.forward(clean_arr, training=False) for m in self.models], axis=0)
+        mean_p = np.mean(preds, axis=0)
+        return mean_p / np.sum(mean_p, axis=1, keepdims=True)

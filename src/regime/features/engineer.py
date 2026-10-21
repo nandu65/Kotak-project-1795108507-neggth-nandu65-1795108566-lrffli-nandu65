@@ -230,18 +230,15 @@ class FeatureEngineer:
         f["rsi_14"] = compute_rsi(nifty, period=14)
 
         # ---------------------------------------------------------
-        # 6. Market Breadth Features
+        # 6. Real Market Breadth & Cross-Cap Features
+        # (Synthetic advance/decline breadth dropped per data honesty audit)
         # ---------------------------------------------------------
-        adv = pit_df["advances"]
-        dec = pit_df["declines"]
-        f["adv_dec_ratio"] = adv / (dec + 1e-5)
-        f["pct_above_50dma"] = pit_df["pct_above_50dma"]
         f["breadth_mid_minus_large"] = (mid / mid.shift(21)) - (nifty / nifty.shift(21))
         f["breadth_small_minus_large"] = (sml / sml.shift(21)) - (nifty / nifty.shift(21))
         f["small_large_spread_21d"] = f["breadth_small_minus_large"]
         f["small_large_spread_63d"] = (sml / sml.shift(63)) - (nifty / nifty.shift(63))
 
-        # Share of indices above 200DMA (fraction of Nifty 50, Midcap, Smallcap above 200DMA)
+        # Share of indices above 200DMA (fraction of Nifty 50, Midcap 50, Smallcap 250 above 200DMA)
         mid_ma200 = mid.rolling(200, min_periods=150).mean()
         sml_ma200 = sml.rolling(200, min_periods=150).mean()
         share_above = (
@@ -250,29 +247,23 @@ class FeatureEngineer:
             + (sml > sml_ma200).astype(float)
         ) / 3.0
         f["share_above_200dma"] = share_above
-
-        f["breadth_thrust_10d"] = (f["adv_dec_ratio"].rolling(10, min_periods=8).mean() > 1.3).astype(float)
-        f["breadth_momentum_21d"] = f["pct_above_50dma"].diff(21)
         f["cap_divergence_warning"] = (f["small_large_spread_21d"] < -0.05).astype(float)
 
         # ---------------------------------------------------------
         # 7. Institutional Flow Channels
+        # (Synthetic FII/DII flows removed per data honesty audit.
+        # No public CSV was placed in data/raw; hence excluded from features)
         # ---------------------------------------------------------
-        fii = pit_df["fii_equity"]
-        dii = pit_df["dii_equity"]
-        f["fii_flow_5d"] = fii.rolling(5, min_periods=3).sum()
-        f["dii_flow_5d"] = dii.rolling(5, min_periods=3).sum()
-        f["fii_flow_z_60d"] = compute_expanding_zscore(fii.rolling(5).sum(), min_periods=60)
-        f["flow_balance_ratio"] = f["dii_flow_5d"] / (f["fii_flow_5d"].abs() + 1e-5)
-        f["flow_divergence"] = ((dii > 0) & (fii < 0)).astype(float)
-        f["absorption_ratio"] = dii / (fii.abs() + 1e-5)
 
         # ---------------------------------------------------------
         # 8. Macro Transmission & Global Context (With Publication Lags)
+        # Note: ^TNX is a US 10Y Treasury proxy, NOT an Indian G-Sec.
+        # The India-US yield spread has been dropped per data honesty audit.
         # ---------------------------------------------------------
-        gilt = pit_df["gilt_10y"]
-        f["gilt_level"] = gilt
-        f["gilt_change_21d"] = gilt.diff(21)
+        gilt = pit_df.get("gilt_10y", pd.Series(0.0, index=pit_df.index))
+        f["us_10y_yield_level"] = gilt
+        f["us_10y_change_21d"] = gilt.diff(21)
+        f["gilt_level"] = gilt  # Retained as alias for backward compatibility
 
         inr = pit_df["usdinr"]
         f["usdinr_level"] = inr
@@ -288,10 +279,6 @@ class FeatureEngineer:
         dxy = pit_df["dxy"]
         f["dxy_change_21d"] = dxy.pct_change(21)
 
-        # India - US 10Y Yield Spread
-        # gilt_10y is in %, US 10Y proxy is derived or spread against benchmark
-        f["yield_spread_india_us"] = gilt - 2.50  # Baseline spread over US reference
-
         # DXY-orthogonalised INR change
         inr_ret = pit_df.get("usdinr_return", inr.pct_change()).fillna(0.0)
         dxy_ret = pit_df.get("dxy_return", dxy.pct_change()).fillna(0.0)
@@ -301,20 +288,50 @@ class FeatureEngineer:
         f["inr_dxy_residual_21d"] = f["usdinr_change_21d"] - beta_dxy * f["dxy_change_21d"]
 
         # ---------------------------------------------------------
-        # 9. Composite Crisis & Crash Detection Flags
+        # 9. Composite Crisis & Crash Detection Flags (Authentic Variables Only)
         # ---------------------------------------------------------
         vix_spike = f["vix_z"] > 2.0
-        breadth_collapse = f["pct_above_50dma"] < 30.0
-        fii_flight = f["fii_flow_z_60d"] < -1.5
         inr_stress = f["usdinr_z_60d"] > 1.5
+        mkt_momentum_drop = f["ret_21d"] < -0.05
+        vol_inversion = f["vol_ratio"] > 1.2
+        cap_stress = f["cap_divergence_warning"] > 0.5
         signal_count = (
             vix_spike.astype(int)
-            + breadth_collapse.astype(int)
-            + fii_flight.astype(int)
             + inr_stress.astype(int)
+            + mkt_momentum_drop.astype(int)
+            + vol_inversion.astype(int)
+            + cap_stress.astype(int)
         )
         f["crash_alert_count"] = signal_count.astype(float)
         f["acute_risk_off_flag"] = (signal_count >= 3).astype(float)
+
+        # ---------------------------------------------------------
+        # 10. Topological Data Analysis (TDA) Features
+        # ---------------------------------------------------------
+        from .tda import compute_rolling_tda_features
+        r_default = f["ret_1d"]
+        tda_input = pd.DataFrame({
+            "nifty": pit_df["nifty_return"] if "nifty_return" in pit_df else r_default,
+            "midcap": pit_df["midcap_return"] if "midcap_return" in pit_df else r_default,
+            "smallcap": pit_df["smallcap_return"] if "smallcap_return" in pit_df else r_default,
+        }, index=pit_df.index).fillna(0.0)
+        tda_feats = compute_rolling_tda_features(tda_input, window=63)
+        for c in tda_feats.columns:
+            f[c] = tda_feats[c]
+
+        # ---------------------------------------------------------
+        # 11. Lightweight Graph Neural Network (GNN) Features
+        # ---------------------------------------------------------
+        from .gnn import compute_rolling_gnn_features
+        gnn_input = pd.DataFrame({
+            "nifty": pit_df["nifty_return"] if "nifty_return" in pit_df else r_default,
+            "midcap": pit_df["midcap_return"] if "midcap_return" in pit_df else r_default,
+            "smallcap": pit_df["smallcap_return"] if "smallcap_return" in pit_df else r_default,
+            "sp500": pit_df["sp500_return"] if "sp500_return" in pit_df else r_default,
+        }, index=pit_df.index).fillna(0.0)
+        gnn_feats = compute_rolling_gnn_features(gnn_input, window=63)
+        for c in gnn_feats.columns:
+            f[c] = gnn_feats[c]
 
         return f
 
@@ -332,7 +349,15 @@ class FeatureEngineer:
             is_flagged = missing_pct > 5.0
 
             # Determine group
-            if "ret_" in col or "mom_" in col or "rsi_" in col or col.startswith("nifty_ret"):
+            if col.startswith("tda_"):
+                group = "Topological Data Analysis (TDA)"
+                lag = 0
+                source = "Persistent Homology (Ripser / Vietoris-Rips)"
+            elif col.startswith("gnn_"):
+                group = "Graph Neural Network (GNN)"
+                lag = 0
+                source = "Cross-Asset Dynamic Graph Embedding"
+            elif "ret_" in col or "mom_" in col or "rsi_" in col or col.startswith("nifty_ret"):
                 group = "Returns & Momentum"
                 lag = 0
                 source = "NSE Daily Prices"

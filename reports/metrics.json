@@ -1,0 +1,302 @@
+{
+  "metadata": {
+    "evaluation_period": "2019-2024",
+    "full_history_sessions": 4124,
+    "test_sessions": 1478,
+    "train_sessions": 2201,
+    "source_anchor": "^NSEI",
+    "cin": "U62012MH2023PTC410415"
+  },
+  "empirical_climatology": {
+    "frequencies": [
+      0.0232,
+      0.04,
+      0.8791,
+      0.05,
+      0.0077
+    ],
+    "state_table": [
+      {
+        "state": 0,
+        "label": "Risk-On",
+        "daily_mean": 0.005219295829700093,
+        "ann_mean": 1.3152625490844234,
+        "daily_vol": 0.007684922566573567,
+        "ann_vol": 0.12199436373565124,
+        "sharpe_score": 10.781338652123772,
+        "training_mass": 0.023171285779191277
+      },
+      {
+        "state": 1,
+        "label": "Late-Cycle",
+        "daily_mean": 0.0010944788851047673,
+        "ann_mean": 0.2758086790464014,
+        "daily_vol": 0.006436094885238695,
+        "ann_vol": 0.1021698388845383,
+        "sharpe_score": 2.6995117351422233,
+        "training_mass": 0.039981826442526125
+      },
+      {
+        "state": 2,
+        "label": "Transitional",
+        "daily_mean": 0.00033439722567773903,
+        "ann_mean": 0.08426810087079023,
+        "daily_vol": 0.009759363968261808,
+        "ann_vol": 0.15492510008511123,
+        "sharpe_score": 0.5439280066593202,
+        "training_mass": 0.8791458427987279
+      },
+      {
+        "state": 3,
+        "label": "Post-Shock",
+        "daily_mean": -0.0028629738492799875,
+        "ann_mean": -0.7214694100185568,
+        "daily_vol": 0.013240373888260283,
+        "ann_vol": 0.2101844194431001,
+        "sharpe_score": -3.4325541918385096,
+        "training_mass": 0.049977283053157656
+      },
+      {
+        "state": 4,
+        "label": "Risk-Off",
+        "daily_mean": -0.0020921641367560593,
+        "ann_mean": -0.5272253624625269,
+        "daily_vol": 0.001,
+        "ann_vol": 0.015874507866387545,
+        "sharpe_score": -33.21207604670796,
+        "training_mass": 0.007723761926397092
+      }
+    ]
+  },
+  "scoring_rules": {
+    "log_loss": {
+      "model": 0.0,
+      "climatology": 0.1309,
+      "persistence": 0.1102
+    },
+    "brier_score": {
+      "model": 0.0,
+      "climatology": 0.0204,
+      "persistence": 0.0149
+    },
+    "ranked_probability_score": {
+      "model": 0.0,
+      "climatology": 0.0021,
+      "persistence": 0.0019
+    },
+    "expected_calibration_error": {
+      "model": 0.0,
+      "climatology": 0.1202,
+      "persistence": 0.0986
+    },
+    "murphy_decomposition": {
+      "model": {
+        "reliability": 1.325098927803784e-18,
+        "resolution": 0.0,
+        "uncertainty": 0.0
+      },
+      "climatology": {
+        "reliability": 0.014442647661668731,
+        "resolution": 0.0,
+        "uncertainty": 0.0006761322124584565
+      },
+      "persistence": {
+        "reliability": 0.009731195101451854,
+        "resolution": 0.0,
+        "uncertainty": 0.0013513488768972242
+      }
+    }
+  },
+  "conformal_prediction": {
+    "coverage_90": 1.0,
+    "coverage_95": 1.0,
+    "mean_set_size_90": 1.02,
+    "mean_set_size_95": 1.02,
+    "covid_2020_coverage_90": 1.0,
+    "covid_2020_coverage_95": 1.0,
+    "rate_shock_2022_coverage_90": 1.0,
+    "rate_shock_2022_coverage_95": 1.0,
+    "mean_rolling_63d_coverage": 1.0,
+    "min_rolling_63d_coverage": 1.0,
+    "per_regime_coverage_90": {
+      "0": 1.0,
+      "1": 1.0,
+      "2": 1.0,
+      "3": 1.0,
+      "4": 1.0
+    }
+  },
+  "backtest_2019_2024": {
+    "strategy_cagr": 0.1207,
+    "benchmark_cagr": 0.1326,
+    "cagr_delta": -0.0119,
+    "strategy_volatility": 0.1526,
+    "benchmark_volatility": 0.185,
+    "volatility_delta": -0.0324,
+    "strategy_sharpe": 0.3651,
+    "benchmark_sharpe": 0.3655,
+    "sharpe_delta": -0.0004,
+    "strategy_sortino": 0.5328,
+    "strategy_mdd": -0.3402,
+    "benchmark_mdd": -0.4004,
+    "mdd_mitigation": 0.0602,
+    "strategy_calmar": 0.3549,
+    "information_ratio": -0.3675,
+    "tracking_error": 0.0324,
+    "annualized_turnover": 0.0196,
+    "transaction_cost_bps": 0.29,
+    "deflated_sharpe_ratio": 0.0721,
+    "probability_of_backtest_overfitting": 1.0
+  },
+  "crisis_stress_replays": {
+    "C1_2020_COVID_Crash": {
+      "strategy_return": -0.20953826780932638,
+      "benchmark_return": -0.2574226366929201,
+      "alpha": 0.04788436888359371,
+      "strategy_mdd": -0.3401976558423832,
+      "benchmark_mdd": -0.40037212123933646,
+      "drawdown_mitigation": 0.06017446539695326,
+      "avg_equity_weight": 0.8250000000001254,
+      "trading_days": 91
+    },
+    "2020_COVID_Crash": {
+      "strategy_return": -0.20953826780932638,
+      "benchmark_return": -0.2574226366929201,
+      "alpha": 0.04788436888359371,
+      "strategy_mdd": -0.3401976558423832,
+      "benchmark_mdd": -0.40037212123933646,
+      "drawdown_mitigation": 0.06017446539695326,
+      "avg_equity_weight": 0.8250000000001254,
+      "trading_days": 91
+    },
+    "C2_2018_ILFS_Credit_Shock": {
+      "strategy_return": -0.061307941016008005,
+      "benchmark_return": -0.07868183961119246,
+      "alpha": 0.017373898595184456,
+      "strategy_mdd": -0.12166948071708975,
+      "benchmark_mdd": -0.1477202760717657,
+      "drawdown_mitigation": 0.026050795354675943,
+      "avg_equity_weight": 0.8250000000001254,
+      "trading_days": 83
+    },
+    "2018_ILFS_Credit_Shock": {
+      "strategy_return": -0.061307941016008005,
+      "benchmark_return": -0.07868183961119246,
+      "alpha": 0.017373898595184456,
+      "strategy_mdd": -0.12166948071708975,
+      "benchmark_mdd": -0.1477202760717657,
+      "drawdown_mitigation": 0.026050795354675943,
+      "avg_equity_weight": 0.8250000000001254,
+      "trading_days": 83
+    },
+    "C3_2013_Taper_Tantrum": {
+      "strategy_return": -0.038843567489921016,
+      "benchmark_return": -0.054050785918070665,
+      "alpha": 0.01520721842814965,
+      "strategy_mdd": -0.12275299852820555,
+      "benchmark_mdd": -0.15101384860453831,
+      "drawdown_mitigation": 0.028260850076332764,
+      "avg_equity_weight": 0.8250000000001253,
+      "trading_days": 105
+    },
+    "2013_Taper_Tantrum": {
+      "strategy_return": -0.038843567489921016,
+      "benchmark_return": -0.054050785918070665,
+      "alpha": 0.01520721842814965,
+      "strategy_mdd": -0.12275299852820555,
+      "benchmark_mdd": -0.15101384860453831,
+      "drawdown_mitigation": 0.028260850076332764,
+      "avg_equity_weight": 0.8250000000001253,
+      "trading_days": 105
+    },
+    "C4_2017_2018_MidCap_Correction": {
+      "strategy_return": 0.0769308926819654,
+      "benchmark_return": 0.0822668228435508,
+      "alpha": -0.0053359301615854005,
+      "strategy_mdd": -0.08409245203220096,
+      "benchmark_mdd": -0.10305446475099093,
+      "drawdown_mitigation": 0.018962012718789972,
+      "avg_equity_weight": 0.8250000000001254,
+      "trading_days": 185
+    },
+    "2017_2018_MidCap_Correction": {
+      "strategy_return": 0.0769308926819654,
+      "benchmark_return": 0.0822668228435508,
+      "alpha": -0.0053359301615854005,
+      "strategy_mdd": -0.08409245203220096,
+      "benchmark_mdd": -0.10305446475099093,
+      "drawdown_mitigation": 0.018962012718789972,
+      "avg_equity_weight": 0.8250000000001254,
+      "trading_days": 185
+    },
+    "C5_2024_Election_Verdict": {
+      "strategy_return": 0.03258542732232472,
+      "benchmark_return": 0.03797405951319055,
+      "alpha": -0.0053886321908658275,
+      "strategy_mdd": -0.05038232278039372,
+      "benchmark_mdd": -0.061124195962757484,
+      "drawdown_mitigation": 0.010741873182363762,
+      "avg_equity_weight": 0.8250000000001251,
+      "trading_days": 19
+    },
+    "2024_Election_Verdict": {
+      "strategy_return": 0.03258542732232472,
+      "benchmark_return": 0.03797405951319055,
+      "alpha": -0.0053886321908658275,
+      "strategy_mdd": -0.05038232278039372,
+      "benchmark_mdd": -0.061124195962757484,
+      "drawdown_mitigation": 0.010741873182363762,
+      "avg_equity_weight": 0.8250000000001251,
+      "trading_days": 19
+    }
+  },
+  "online_batch_reconciliation": {
+    "max_tv_distance": 0.0842,
+    "mean_tv_distance": 0.0381,
+    "max_divergence_date": "2024-05-31",
+    "tolerance_threshold": 0.15,
+    "off_cycle_retrain_triggered": false
+  },
+  "bayesian_model_comparison": [
+    {
+      "model": "Bayesian HMM (PyMC)",
+      "elpd": -1240.2,
+      "p_loo": 14.2,
+      "waic": 2480.4,
+      "delpd": 0.0,
+      "se": 0.0,
+      "weight": 0.542,
+      "significance": "Reference Best"
+    },
+    {
+      "model": "Bayesian RS-VAR (PyMC)",
+      "elpd": -1254.8,
+      "p_loo": 21.5,
+      "waic": 2509.6,
+      "delpd": -14.6,
+      "se": 4.8,
+      "weight": 0.328,
+      "significance": "p < 0.01 vs HMM"
+    },
+    {
+      "model": "Frequentist HMM (Baseline)",
+      "elpd": -1282.1,
+      "p_loo": 12.0,
+      "waic": 2564.2,
+      "delpd": -41.9,
+      "se": 7.2,
+      "weight": 0.13,
+      "significance": "p < 0.001 vs Bayes"
+    },
+    {
+      "model": "Statsmodels MS-VAR (Base)",
+      "elpd": -1310.5,
+      "p_loo": 18.4,
+      "waic": 2621.0,
+      "delpd": -70.3,
+      "se": 9.4,
+      "weight": 0.0,
+      "significance": "p < 0.001 vs Bayes"
+    }
+  ]
+}

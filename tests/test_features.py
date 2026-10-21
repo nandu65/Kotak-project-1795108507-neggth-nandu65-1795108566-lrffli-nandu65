@@ -80,7 +80,7 @@ def test_truncation_no_look_ahead():
     # Select columns that are valid at T-1
     test_cols = [
         "ret_1d", "ret_5d", "ret_21d", "vol_21d", "vol_63d",
-        "vix_level", "vix_change_5d", "adv_dec_ratio",
+        "vix_level", "vix_change_5d", "breadth_mid_minus_large",
         "gilt_level", "usdinr_level", "crude_change_21d"
     ]
 
@@ -127,3 +127,61 @@ def test_metadata_table_and_outputs():
     # Flag features with >5% missing
     flagged = meta_df[meta_df["is_flagged_gt_5pct_missing"] == True]
     assert len(flagged) >= 0  # Checked and tracked
+
+
+def test_tda_truncation_no_look_ahead():
+    """
+    Verify TDA persistent homology features satisfy strict truncation invariance.
+    TDA values at index T must be identical whether computed on the full series
+    or on the series truncated at T.
+    """
+    from src.regime.features.tda import compute_rolling_tda_features
+
+    rng = np.random.default_rng(42)
+    dates = pd.date_range("2022-01-01", periods=150, freq="B")
+    ret_df = pd.DataFrame({
+        "nifty": rng.normal(0.0005, 0.01, size=150),
+        "midcap": rng.normal(0.0006, 0.012, size=150),
+        "smallcap": rng.normal(0.0007, 0.015, size=150),
+    }, index=dates)
+
+    T = 120
+    full_tda = compute_rolling_tda_features(ret_df, window=63)
+    trunc_tda = compute_rolling_tda_features(ret_df.iloc[:T], window=63)
+
+    # Check at cut-off date T-1
+    for col in ["tda_h0_entropy", "tda_h0_max_lifetime", "tda_h1_total_persistence"]:
+        full_val = full_tda[col].iloc[T - 1]
+        trunc_val = trunc_tda[col].iloc[T - 1]
+        assert np.isclose(full_val, trunc_val, rtol=1e-5, atol=1e-5), (
+            f"TDA feature {col} leaked future data at T-1: {full_val} vs {trunc_val}"
+        )
+
+
+def test_gnn_truncation_no_look_ahead():
+    """
+    Verify lightweight GNN graph embedding features satisfy strict truncation invariance.
+    GNN embedding at index T must be identical whether computed on the full series
+    or on the series truncated at T.
+    """
+    from src.regime.features.gnn import compute_rolling_gnn_features
+
+    rng = np.random.default_rng(42)
+    dates = pd.date_range("2022-01-01", periods=150, freq="B")
+    ret_df = pd.DataFrame({
+        "nifty": rng.normal(0.0005, 0.01, size=150),
+        "midcap": rng.normal(0.0006, 0.012, size=150),
+        "smallcap": rng.normal(0.0007, 0.015, size=150),
+        "sp500": rng.normal(0.0004, 0.009, size=150),
+    }, index=dates)
+
+    T = 120
+    full_gnn = compute_rolling_gnn_features(ret_df, window=63, seed=42)
+    trunc_gnn = compute_rolling_gnn_features(ret_df.iloc[:T], window=63, seed=42)
+
+    for col in ["gnn_embed_l2_norm", "gnn_graph_energy", "gnn_spectral_gap", "gnn_mean_centrality"]:
+        full_val = full_gnn[col].iloc[T - 1]
+        trunc_val = trunc_gnn[col].iloc[T - 1]
+        assert np.isclose(full_val, trunc_val, rtol=1e-5, atol=1e-5), (
+            f"GNN feature {col} leaked future data at T-1: {full_val} vs {trunc_val}"
+        )

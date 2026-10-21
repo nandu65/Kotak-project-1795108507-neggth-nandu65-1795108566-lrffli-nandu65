@@ -15,8 +15,17 @@ from .base import BaseRegimeModel, REGIME_NAMES
 from .bnn_model import (
     BayesianDeepEnsemble,
     NeuralRegimeClassifier,
+    MCDropoutBNN,
+    VariationalBNN,
+    DeepEnsembleModel,
 )
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["BayesianDeepEnsemble", "NeuralRegimeClassifier"]
+__all__ = [
+    "BayesianDeepEnsemble",
+    "NeuralRegimeClassifier",
+    "MCDropoutBNN",
+    "VariationalBNN",
+    "DeepEnsembleModel",
+]

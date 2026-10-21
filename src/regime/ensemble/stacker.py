@@ -448,24 +448,82 @@ class EnsembleRegimeEngine:
         self.stacker = ConstrainedStacker(seed=seed)
         self.bma = BayesianModelAverager()
         self.weights: Dict[str, float] = {m: 1.0 / len(model_names) for m in model_names}
+        self.admitted_models: List[str] = list(model_names)
+        self.member_calibration_records: Dict[str, Dict[str, float]] = {}
+
+    def admit_members_and_log_mlflow(
+        self,
+        base_probs: np.ndarray,
+        y_true: np.ndarray,
+        waic_scores: Optional[Dict[str, float]] = None,
+        max_allowed_ece: float = 0.20,
+    ) -> List[str]:
+        r"""
+        Audit and log calibration metrics (ECE, Brier, RPS, Log Loss, WAIC)
+        to MLflow for every candidate member model BEFORE admission to the ensemble.
+        """
+        M, N, K = base_probs.shape
+        admitted = []
+
+        for m_idx, name in enumerate(self.model_names):
+            p_m = base_probs[m_idx]
+            ece = compute_ece(p_m, y_true, n_bins=10)
+            brier = compute_brier_score(p_m, y_true, K=K)
+            rps = compute_ranked_probability_score(p_m, y_true, K=K)
+            ll = compute_log_loss(p_m, y_true)
+            waic = waic_scores.get(name, 0.0) if waic_scores else 0.0
+
+            cal_metrics = {
+                "ece": float(np.round(ece, 4)),
+                "brier": float(np.round(brier, 4)),
+                "rps": float(np.round(rps, 4)),
+                "log_loss": float(np.round(ll, 4)),
+                "waic": float(np.round(waic, 2)),
+                "admitted": float(1.0 if ece <= max_allowed_ece else 0.0),
+            }
+            self.member_calibration_records[name] = cal_metrics
+
+            # Log member model to MLflow BEFORE admission
+            log_ensemble_to_mlflow(cal_metrics, run_name=f"member_audit_{name}")
+            logger.info("Member audit '%s': ECE=%.4f, Brier=%.4f, RPS=%.4f, Admitted=%s",
+                        name, ece, brier, rps, ece <= max_allowed_ece)
+
+            if ece <= max_allowed_ece:
+                admitted.append(name)
+
+        self.admitted_models = admitted if admitted else list(self.model_names)
+        return self.admitted_models
 
     def fit_ensemble(
         self,
         base_probs: np.ndarray,
         y_true: np.ndarray,
         method: str = "stacking",
+        waic_scores: Optional[Dict[str, float]] = None,
     ) -> Dict[str, float]:
+        """
+        Fit ensemble weights using WAIC/LOO-guided BMA or constrained stacking.
+        """
+        # Audit and log members to MLflow before admission
+        self.admit_members_and_log_mlflow(base_probs, y_true, waic_scores=waic_scores)
+
         M, N, K = base_probs.shape
         if method == "stacking":
             w = self.stacker.fit(base_probs, y_true)
         else:
             log_liks = []
             for m in range(M):
-                ll = -compute_log_loss(base_probs[m], y_true)
+                name = self.model_names[m]
+                if waic_scores and name in waic_scores:
+                    # WAIC-guided prior evidence: -0.5 * WAIC
+                    ll = -0.5 * float(waic_scores[name])
+                else:
+                    ll = -compute_log_loss(base_probs[m], y_true) * len(y_true)
                 log_liks.append(ll)
             w = self.bma.fit(np.array(log_liks))
 
         self.weights = {self.model_names[i]: float(np.round(w[i], 4)) for i in range(M)}
+        log_ensemble_to_mlflow(self.weights, run_name="ensemble_weights_admitted")
         return self.weights
 
     def predict_contract(

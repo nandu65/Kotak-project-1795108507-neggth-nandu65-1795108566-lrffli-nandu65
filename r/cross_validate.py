@@ -69,7 +69,6 @@ def run_cross_validation() -> dict:
 
         # Check probability correlation between Python and R
         r_prob_mat = r_df[py_hmm.regime_names].values
-        # Align lengths if needed
         min_len = min(len(py_probs), len(r_prob_mat))
         corr_diag = [
             float(np.corrcoef(py_probs[:min_len, k], r_prob_mat[:min_len, k])[0, 1])
@@ -78,23 +77,24 @@ def run_cross_validation() -> dict:
         avg_corr = float(np.mean(corr_diag))
         logger.info("Mean probability correlation (Python vs R): %.4f", avg_corr)
         reconciled = avg_corr > 0.70
+        status_str = "DONE" if reconciled else "FAILED"
+        r_note = "R depmixS4 executed and reconciled against Python HMM."
     else:
-        logger.info("R output CSV not detected; verifying Python internal numerical invariance.")
-        # Self-consistency check under seed invariance
-        py_hmm_check = GaussianRegimeHMM(n_regimes=5, n_iter=100, seed=42).fit(
-            clean_rets.values.reshape(-1, 1)
-        )
-        assert np.allclose(py_hmm.means, py_hmm_check.means, atol=1e-5)
-        reconciled = True
-        avg_corr = 1.0
+        logger.warning("R runtime / output not detected on host environment. Marking R check as NOT RUN.")
+        reconciled = False
+        avg_corr = None
+        status_str = "NOT RUN"
+        r_note = "R runtime (Rscript) is not installed on host machine. Scripts provided in r/ directory."
 
     report = {
+        "status": status_str,
         "observations_checked": len(clean_rets),
         "python_log_likelihood": float(py_hmm.log_likelihood_),
         "python_bic": float(py_hmm.bic_),
         "stickiness_score": float(py_hmm.get_stickiness_score()),
         "average_state_correlation": avg_corr,
         "is_numerically_reconciled": reconciled,
+        "note": r_note,
     }
     return report
 

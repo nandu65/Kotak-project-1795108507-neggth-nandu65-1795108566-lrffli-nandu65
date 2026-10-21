@@ -105,7 +105,10 @@ class AllocationOverlay:
     Regime-Driven Tactical Asset Allocation Overlay for Indian Long-Only Schemes.
 
     Constraints & Mechanics (PDF Section A16.4):
-        1. SEBI Category Bounds: Equity weight restricted to $[w_{\text{min}}, w_{\text{max}}]$ (e.g. $[0.70, 1.00]$).
+        1. Equity Allocation Bounds: AMC internal policy assumption (configurable) restricting
+           equity weight to $[w_{\text{min}}, w_{\text{max}}]$ (default $[0.70, 1.00]$, preserving
+           equity taxation status under Income Tax Act Sec 115T / SEBI categorisation while
+           permitting up to 30% defensive cash/sovereign buffer).
         2. Regime-Driven Targets:
            - Risk-On: 100% Equity (aggressive beta).
            - Late-Cycle: 85% Equity (15% cash/quality buffer).
@@ -490,10 +493,11 @@ def evaluate_stress_episodes(
     """
     if episodes is None:
         episodes = {
-            "2008_GFC": ("2008-01-01", "2009-03-31"),
-            "2013_Taper_Tantrum": ("2013-05-01", "2013-09-30"),
-            "2020_COVID_Crash": ("2020-01-01", "2020-06-30"),
-            "2022_Rate_Shock": ("2022-01-01", "2022-06-30"),
+            "C1_2020_COVID_Crash": ("2020-01-14", "2020-05-31"),
+            "C2_2018_ILFS_Credit_Shock": ("2018-08-28", "2018-12-31"),
+            "C3_2013_Taper_Tantrum": ("2013-05-01", "2013-09-30"),
+            "C4_2017_2018_MidCap_Correction": ("2017-10-01", "2018-06-30"),
+            "C5_2024_Election_Verdict": ("2024-05-20", "2024-06-14"),
         }
 
     results = {}
@@ -520,7 +524,7 @@ def evaluate_stress_episodes(
             b_peak = np.maximum.accumulate(b_wealth)
             b_mdd = float(np.min((b_wealth - b_peak) / b_peak))
 
-            results[ep_name] = {
+            stats = {
                 "strategy_return": float(strat_ret),
                 "benchmark_return": float(bench_ret),
                 "alpha": float(strat_ret - bench_ret),
@@ -530,6 +534,10 @@ def evaluate_stress_episodes(
                 "avg_equity_weight": float(sub["equity_weight"].mean()),
                 "trading_days": len(sub),
             }
+            results[ep_name] = stats
+            if "_" in ep_name and ep_name.startswith("C"):
+                clean_name = ep_name.split("_", 1)[1]
+                results[clean_name] = stats
         except Exception as e:
             logger.debug("Episode %s not in index: %s", ep_name, e)
 
