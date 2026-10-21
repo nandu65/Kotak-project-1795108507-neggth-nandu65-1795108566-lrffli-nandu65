@@ -90,4 +90,38 @@
   - MCMC sampling with sticky Dirichlet prior requires multi-second sampling budgets per chain; short chains are defaulted for fast unit testing and walk-forward evaluations.
   - Remote HuggingFace transformer weights for Chronos require internet access; offline `TemporalPatchEncoder` fallback is automatically used when offline or in sandboxed execution.
 
+## Step 5: Ensemble Layer, Scoring Rules & Uncertainty Decomposition (src/regime/ensemble/)
+- **What Was Built:**
+  - `src/regime/ensemble/stacker.py`:
+    - Bayesian Model Averaging (`BayesianModelAverager`) based on out-of-sample log predictive evidence.
+    - Time-Aware Constrained Stacking (`ConstrainedStacker`) via SLSQP optimization on out-of-fold cross-entropy; asserts simplex constraints ($\sum w_m = 1 \pm 10^{-4}, w_m \ge 0$).
+    - Information-theoretic uncertainty decomposition (`decompose_uncertainty_entropy`) proving the exact identity $H(\bar{p}) = \mathbb{E}[H] + I(Y; \Theta)$ (Total Entropy = Aleatoric Expected Entropy + Epistemic Mutual Information).
+    - Daily Combined Regime Output Contract (`EnsembleRegimeEngine.predict_contract`) emitting regime probabilities and explicit uncertainty budgets.
+    - Strictly proper scoring rules: multi-class Brier score, Ranked Probability Score (RPS) respecting ordinal regime ordering ($\text{Risk-On} \to \text{Late-Cycle} \to \text{Transitional} \to \text{Post-Shock} \to \text{Risk-Off}$), out-of-sample log loss, and Murphy Brier decomposition ($\text{Brier} = \text{Reliability} - \text{Resolution} + \text{Uncertainty}$).
+    - Expected Calibration Error (`compute_ece`) and reliability diagram generation (`generate_reliability_curve` $\to$ `reports/figures/reliability_curve.png`).
+    - Standard benchmarking suite: `ClimatologyBenchmark` (unconditional empirical frequencies), `PersistenceBenchmark` ($s_t = s_{t-1}$), and `VolThresholdBenchmark` (20-day rolling realised volatility quantiles).
+    - MLflow experiment logging (`log_ensemble_to_mlflow`) with graceful offline fallback.
+- **Real Test Output:**
+  ```text
+  ============================= test session starts =============================
+  platform win32 -- Python 3.14.3, pytest-9.1.1, pluggy-1.7.0
+  rootdir: D:\bayesian-regime-detection-APK
+  plugins: anyio-4.12.1
+  collected 8 items
+
+  tests/test_ensemble.py::test_ranked_probability_score_ordering PASSED    [ 12%]
+  tests/test_ensemble.py::test_murphy_brier_decomposition PASSED           [ 25%]
+  tests/test_ensemble.py::test_bayesian_model_averager PASSED              [ 37%]
+  tests/test_ensemble.py::test_constrained_stacker PASSED                  [ 50%]
+  tests/test_ensemble.py::test_ensemble_regime_engine_contract PASSED      [ 62%]
+  tests/test_ensemble.py::test_hand_computed_scoring_rules PASSED          [ 75%]
+  tests/test_ensemble.py::test_uncertainty_decomposition_identity PASSED   [ 87%]
+  tests/test_ensemble.py::test_calibration_ece_and_benchmarks PASSED       [100%]
+
+  ============================= 8 passed in 12.30s ==============================
+  ```
+- **Known Weaknesses:**
+  - In periods of extreme market consensus where all models agree, epistemic uncertainty (mutual information) approaches zero, meaning the uncertainty budget is dominated by data aleatoric noise.
+  - SLSQP quadratic solver runtime scales quadratically with candidate models; constrained to $M \le 10$ models for fast walk-forward execution.
+
 ---

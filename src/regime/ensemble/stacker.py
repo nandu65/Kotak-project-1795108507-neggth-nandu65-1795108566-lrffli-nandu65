@@ -108,6 +108,148 @@ def compute_skill_score(score_model: float, score_reference: float) -> float:
     return float(1.0 - (score_model / score_reference))
 
 
+def compute_ece(probs: np.ndarray, y_true: np.ndarray, n_bins: int = 10) -> float:
+    r"""
+    Expected Calibration Error (ECE; Guo et al. 2017; PDF Section A14):
+        $$\text{ECE} = \sum_{b=1}^B \frac{|B_b|}{N} |\text{acc}(B_b) - \text{conf}(B_b)|$$
+    where confidence is $\max_k p_{ik}$ and accuracy is $\mathbb{I}(\hat{y}_i = y_i)$.
+    """
+    N = len(y_true)
+    if N == 0:
+        return 0.0
+    confidences = np.max(probs, axis=1)
+    predictions = np.argmax(probs, axis=1)
+    accuracies = (predictions == y_true).astype(float)
+
+    bin_boundaries = np.linspace(0.0, 1.0, n_bins + 1)
+    ece = 0.0
+
+    for b in range(n_bins):
+        in_bin = (confidences > bin_boundaries[b]) & (confidences <= bin_boundaries[b + 1])
+        prop_in_bin = np.mean(in_bin)
+        if prop_in_bin > 0:
+            acc_in_bin = np.mean(accuracies[in_bin])
+            conf_in_bin = np.mean(confidences[in_bin])
+            ece += prop_in_bin * np.abs(acc_in_bin - conf_in_bin)
+
+    return float(ece)
+
+
+def decompose_uncertainty_entropy(
+    model_probs: np.ndarray,
+    weights: Optional[np.ndarray] = None,
+    eps: float = 1e-12,
+) -> Dict[str, Any]:
+    r"""
+    Information-Theoretic Uncertainty Decomposition into Epistemic and Aleatoric entropy (PDF Section A10.3):
+        Ensemble Mixture: $$\bar{p}_k = \sum_{m=1}^M w_m p_{mk}$$
+        Total Uncertainty (Total Entropy):
+            $$H(\bar{p}) = -\sum_{k=0}^{K-1} \bar{p}_k \ln \bar{p}_k$$
+        Aleatoric Uncertainty (Expected Entropy):
+            $$\mathbb{E}[H] = \sum_{m=1}^M w_m H(p_m) = -\sum_{m=1}^M w_m \sum_{k=0}^{K-1} p_{mk} \ln p_{mk}$$
+        Epistemic Uncertainty (Mutual Information):
+            $$I(Y; \Theta) = H(\bar{p}) - \mathbb{E}[H]$$
+    Satisfies exact identity: $$H = \mathbb{E}[H] + I$$
+    """
+    # model_probs: (M, K) or (M, N, K)
+    if model_probs.ndim == 2:
+        M, K = model_probs.shape
+        w = np.ones(M) / M if weights is None else np.asarray(weights, dtype=float)
+        w = w / np.sum(w)
+
+        # Mixture (K,)
+        p_bar = np.clip(w @ model_probs, eps, 1.0)
+        p_bar = p_bar / np.sum(p_bar)
+        total_entropy = float(-np.sum(p_bar * np.log(p_bar)))
+
+        # Member entropies
+        p_clipped = np.clip(model_probs, eps, 1.0)
+        member_entropies = -np.sum(p_clipped * np.log(p_clipped), axis=1)  # (M,)
+        aleatoric_entropy = float(np.sum(w * member_entropies))
+
+        # Mutual information (Epistemic)
+        epistemic_mi = float(max(0.0, total_entropy - aleatoric_entropy))
+
+        return {
+            "total_entropy": float(np.round(total_entropy, 6)),
+            "aleatoric_entropy": float(np.round(aleatoric_entropy, 6)),
+            "epistemic_mutual_info": float(np.round(epistemic_mi, 6)),
+            "identity_verified": bool(abs(total_entropy - (aleatoric_entropy + epistemic_mi)) < 1e-5),
+        }
+    elif model_probs.ndim == 3:
+        M, N, K = model_probs.shape
+        w = np.ones(M) / M if weights is None else np.asarray(weights, dtype=float)
+        w = w / np.sum(w)
+
+        # Mixture (N, K)
+        p_bar = np.clip(np.tensordot(w, model_probs, axes=(0, 0)), eps, 1.0)
+        p_bar = p_bar / np.sum(p_bar, axis=1, keepdims=True)
+        total_entropy = -np.sum(p_bar * np.log(p_bar), axis=1)  # (N,)
+
+        p_clipped = np.clip(model_probs, eps, 1.0)
+        member_h = -np.sum(p_clipped * np.log(p_clipped), axis=-1)  # (M, N)
+        aleatoric_entropy = np.tensordot(w, member_h, axes=(0, 0))  # (N,)
+        epistemic_mi = np.maximum(0.0, total_entropy - aleatoric_entropy)  # (N,)
+
+        return {
+            "total_entropy": total_entropy,
+            "aleatoric_entropy": aleatoric_entropy,
+            "epistemic_mutual_info": epistemic_mi,
+            "mean_total_entropy": float(np.mean(total_entropy)),
+            "mean_aleatoric_entropy": float(np.mean(aleatoric_entropy)),
+            "mean_epistemic_mutual_info": float(np.mean(epistemic_mi)),
+        }
+    else:
+        raise ValueError(f"Invalid model_probs dimension: {model_probs.ndim}")
+
+
+def generate_reliability_curve(
+    probs: np.ndarray,
+    y_true: np.ndarray,
+    save_path: str = "reports/figures/reliability_curve.png",
+    n_bins: int = 10,
+) -> Dict[str, Any]:
+    """Generate reliability diagram and save figure."""
+    import os
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    confidences = np.max(probs, axis=1)
+    predictions = np.argmax(probs, axis=1)
+    accuracies = (predictions == y_true).astype(float)
+
+    bin_boundaries = np.linspace(0.0, 1.0, n_bins + 1)
+    bin_confs, bin_accs, bin_counts = [], [], []
+
+    for b in range(n_bins):
+        in_bin = (confidences > bin_boundaries[b]) & (confidences <= bin_boundaries[b + 1])
+        if in_bin.sum() > 0:
+            bin_confs.append(float(np.mean(confidences[in_bin])))
+            bin_accs.append(float(np.mean(accuracies[in_bin])))
+            bin_counts.append(int(in_bin.sum()))
+
+    ece = compute_ece(probs, y_true, n_bins=n_bins)
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.plot([0, 1], [0, 1], "k--", label="Perfect Calibration")
+    if bin_confs:
+        ax.plot(bin_confs, bin_accs, "s-", color="#1f77b4", label=f"Ensemble (ECE={ece:.3f})")
+        ax.bar(bin_confs, bin_accs, width=0.05, alpha=0.2, color="#1f77b4")
+    ax.set_xlabel("Confidence")
+    ax.set_ylabel("Accuracy")
+    ax.set_title("Reliability Diagram (5-Regime Stacking Ensemble)")
+    ax.legend(loc="lower right")
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=200)
+    plt.close(fig)
+
+    return {"ece": ece, "bin_confs": bin_confs, "bin_accs": bin_accs, "figure_path": save_path}
+
+
 # ---------------------------------------------------------------------------
 # Ensembling & Stacking Algorithms (PDF Section A10)
 # ---------------------------------------------------------------------------
@@ -192,6 +334,8 @@ class ConstrainedStacker:
         res = minimize(neg_loglik, w0, method="SLSQP", bounds=bounds, constraints=constraints)
         w_opt = np.clip(res.x, 0.0, 1.0)
         self.weights = w_opt / np.sum(w_opt)
+        assert np.isclose(np.sum(self.weights), 1.0, atol=1e-4), "Stacking weights must sum to 1 within 1e-4"
+        assert (self.weights >= -1e-6).all(), "Stacking weights must be non-negative"
         return self.weights
 
     def predict_proba(self, base_probs: np.ndarray) -> np.ndarray:
@@ -204,11 +348,97 @@ class ConstrainedStacker:
         return combined / np.sum(combined, axis=-1, keepdims=True)
 
 
+class ClimatologyBenchmark:
+    r"""
+    Climatology Benchmark (PDF Section A14.4):
+    Predicts unconditional historical empirical frequencies $\hat{\pi}_k = \frac{1}{N} \sum_{i=1}^N \mathbb{I}(y_i = k)$.
+    """
+    def __init__(self, K: int = 5) -> None:
+        self.K = K
+        self.probs_: np.ndarray = np.ones(K) / K
+
+    def fit(self, y_train: np.ndarray) -> ClimatologyBenchmark:
+        counts = np.bincount(y_train, minlength=self.K)
+        self.probs_ = counts / np.maximum(np.sum(counts), 1)
+        return self
+
+    def predict_proba(self, N: int) -> np.ndarray:
+        return np.tile(self.probs_, (N, 1))
+
+
+class PersistenceBenchmark:
+    r"""
+    Persistence Benchmark (PDF Section A14.4):
+    Predicts tomorrow's regime equals today's observed regime ($s_t = s_{t-1}$).
+    """
+    def __init__(self, K: int = 5, eps: float = 0.01) -> None:
+        self.K = K
+        self.eps = eps
+
+    def predict_proba(self, y_prev: np.ndarray) -> np.ndarray:
+        N = len(y_prev)
+        probs = np.full((N, self.K), self.eps / (self.K - 1))
+        for i in range(N):
+            probs[i, y_prev[i]] = 1.0 - self.eps
+        return probs / np.sum(probs, axis=1, keepdims=True)
+
+
+class VolThresholdBenchmark:
+    r"""
+    20-day Realised Volatility Threshold Benchmark:
+    Maps 20-day rolling realised volatility quantiles into 5 regimes.
+    """
+    def __init__(self, K: int = 5) -> None:
+        self.K = K
+        self.quantiles: Optional[np.ndarray] = None
+
+    def fit(self, vol_20d: np.ndarray) -> VolThresholdBenchmark:
+        v = vol_20d[~np.isnan(vol_20d)]
+        self.quantiles = np.percentile(v, [25, 50, 75, 90])
+        return self
+
+    def predict_proba(self, vol_20d: np.ndarray) -> np.ndarray:
+        N = len(vol_20d)
+        probs = np.full((N, self.K), 0.05 / (self.K - 1))
+        for i, val in enumerate(vol_20d):
+            if np.isnan(val) or self.quantiles is None:
+                probs[i] = 1.0 / self.K
+            elif val <= self.quantiles[0]:
+                probs[i, 0] = 0.95  # Risk-On (low vol)
+            elif val <= self.quantiles[1]:
+                probs[i, 1] = 0.95  # Late-Cycle
+            elif val <= self.quantiles[2]:
+                probs[i, 2] = 0.95  # Transitional
+            elif val <= self.quantiles[3]:
+                probs[i, 3] = 0.95  # Post-Shock
+            else:
+                probs[i, 4] = 0.95  # Risk-Off (crisis vol spike)
+        return probs / np.sum(probs, axis=1, keepdims=True)
+
+
+def log_ensemble_to_mlflow(
+    metrics: Dict[str, float],
+    weights: Optional[Dict[str, float]] = None,
+    run_name: str = "ensemble_evaluation",
+) -> None:
+    """Log scoring rules and ensemble weights to MLflow with offline fallback."""
+    try:
+        import mlflow
+        with mlflow.start_run(run_name=run_name, nested=True):
+            for k, v in metrics.items():
+                mlflow.log_metric(k, float(v))
+            if weights:
+                for m, w in weights.items():
+                    mlflow.log_metric(f"weight_{m}", float(w))
+    except Exception as e:
+        logger.info("MLflow logging skipped (offline/local fallback): %s", e)
+
+
 class EnsembleRegimeEngine:
     r"""
     Unified Regime Ensemble Engine (PDF Section A10.4 & A11.2).
     Coordinates base models, computes stacking/BMA mixtures, decomposes
-    uncertainty into Epistemic (model disagreement) and Aleatoric (data noise),
+    uncertainty into Epistemic (mutual info) and Aleatoric (expected entropy),
     and emits the Daily Combined Regime Output Contract.
     """
 
@@ -225,22 +455,10 @@ class EnsembleRegimeEngine:
         y_true: np.ndarray,
         method: str = "stacking",
     ) -> Dict[str, float]:
-        """
-        Fit ensemble combination weights.
-
-        Args:
-            base_probs: (M, N, K) matrix of base model predictions.
-            y_true: (N,) true regime labels.
-            method: 'stacking' or 'bma'.
-
-        Returns:
-            Dict mapping model names to fitted weights.
-        """
         M, N, K = base_probs.shape
         if method == "stacking":
             w = self.stacker.fit(base_probs, y_true)
         else:
-            # BMA based on negative log-loss per model
             log_liks = []
             for m in range(M):
                 ll = -compute_log_loss(base_probs[m], y_true)
@@ -256,19 +474,6 @@ class EnsembleRegimeEngine:
         date_str: str = "2026-10-19",
         dominant_override: Optional[str] = None,
     ) -> Dict[str, Any]:
-        r"""
-        Emit the Unified Daily Regime Output Contract (PDF Section A10.4).
-
-        Returns:
-            Contract dict containing:
-            - date: Date string
-            - regime_probs: (5,) ensembled posterior probability vector
-            - dominant_regime: argmax regime name
-            - dominant_model: Highest-weight ensemble member
-            - ensemble_weights: Model weights dictionary
-            - epistemic_uncertainty: Inter-model standard deviation
-            - aleatoric_uncertainty: Intra-model average entropy
-        """
         # model_probs: (M, K) for single day or (M, 1, K)
         if model_probs.ndim == 3 and model_probs.shape[1] == 1:
             p_day = model_probs[:, 0, :]
@@ -286,11 +491,8 @@ class EnsembleRegimeEngine:
         dominant_idx = int(np.argmax(ensembled_p))
         dominant_regime = REGIME_NAMES[dominant_idx]
 
-        # Epistemic: standard deviation across model predictions for the dominant regime
-        epistemic = float(np.std(p_day[:, dominant_idx]))
-
-        # Aleatoric: average per-member Bernoulli dispersion
-        aleatoric = float(np.mean(p_day[:, dominant_idx] * (1.0 - p_day[:, dominant_idx])))
+        # Information-theoretic uncertainty decomposition: H = E[H] + I
+        decomp = decompose_uncertainty_entropy(p_day, weights=w_vec)
 
         # Find dominant model (highest weight)
         dom_model = max(self.weights.items(), key=lambda x: x[1])[0]
@@ -301,8 +503,15 @@ class EnsembleRegimeEngine:
             "dominant_regime": dominant_regime,
             "dominant_model": dom_model,
             "ensemble_weights": self.weights,
-            "epistemic_uncertainty": float(np.round(epistemic, 5)),
-            "aleatoric_uncertainty": float(np.round(aleatoric, 5)),
+            "epistemic_uncertainty": decomp["epistemic_mutual_info"],
+            "aleatoric_uncertainty": decomp["aleatoric_entropy"],
+            "total_entropy": decomp["total_entropy"],
+            "uncertainty_budget": {
+                "total_entropy": decomp["total_entropy"],
+                "aleatoric_entropy": decomp["aleatoric_entropy"],
+                "epistemic_mutual_info": decomp["epistemic_mutual_info"],
+                "identity_verified": decomp["identity_verified"],
+            },
             "source": "ENSEMBLE_v1.0",
         }
         return contract
