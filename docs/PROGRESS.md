@@ -176,4 +176,35 @@
   - Standard split-conformal assumes exchangeability; during sudden macro regime transitions (e.g., March 2020), empirical coverage momentarily dips before ACI step updates adaptively widen the prediction sets.
   - Rare regimes (e.g. Post-Shock) have smaller sample counts in calibration splits, resulting in slightly higher per-regime coverage variance than dominant states.
 
+## Step 8: Walk-Forward Backtesting, Tactical Allocation Overlay & Risk Engine (src/regime/backtest/)
+- **What Was Built:**
+  - `src/regime/backtest/engine.py`:
+    - Causal Walk-Forward Backtester (`WalkForwardBacktester`) enforcing zero look-ahead bias with expanding training windows and out-of-sample block testing.
+    - Long-only Tactical Allocation Overlay (`AllocationOverlay`) respecting SEBI mutual fund constraints ($[0.70, 1.00]$ equity weight), regime-driven targets (100% Risk-On, 85% Late-Cycle, 80% Transitional, 90% Post-Shock, 70% Risk-Off), fractional Kelly conviction scaling, 1.5% no-trade bands, and 15 bps transaction costs.
+    - Statistical overfitting controls: Deflated Sharpe Ratio (`compute_deflated_sharpe_ratio` discounting for multiple trials, track record length, skew, fat-tailed kurtosis) and Probability of Backtest Overfitting (`compute_probability_of_backtest_overfitting` via CSCV).
+    - Regime-Conditioned Monte Carlo Simulation (`RegimeConditionedMC`) projecting 1-year forward joint distributions, parametric Value-at-Risk (VaR-95), Conditional Value-at-Risk (CVaR-95), and automated Investment Committee narrative briefing generation.
+    - Circular Block Bootstrap (`run_block_bootstrap_monte_carlo`) testing empirical track record robustness across stationary return blocks.
+    - Historical crisis stress episode evaluator (`evaluate_stress_episodes`) covering 2008 GFC, 2013 Taper Tantrum, 2020 COVID-19 crash, and 2022 global rate shock.
+- **Real Test Output:**
+  ```text
+  ============================= test session starts =============================
+  platform win32 -- Python 3.14.3, pytest-9.1.1, pluggy-1.7.0
+  rootdir: D:\bayesian-regime-detection-APK
+  plugins: anyio-4.12.1
+  collected 7 items
+
+  tests/test_backtest.py::test_allocation_overlay_bounds_and_no_trade_band PASSED [ 14%]
+  tests/test_backtest.py::test_deflated_sharpe_ratio_discounting PASSED    [ 28%]
+  tests/test_backtest.py::test_walk_forward_backtester PASSED              [ 42%]
+  tests/test_backtest.py::test_regime_conditioned_monte_carlo PASSED       [ 57%]
+  tests/test_backtest.py::test_block_bootstrap_robustness PASSED           [ 71%]
+  tests/test_backtest.py::test_stress_episodes_evaluation PASSED           [ 85%]
+  tests/test_backtest.py::test_pbo_calculation PASSED                      [100%]
+
+  ============================== 7 passed in 6.91s ==============================
+  ```
+- **Known Weaknesses:**
+  - SEBI statutory mandate bounds ($[0.70, 1.00]$) cap maximum cash defensiveness at 30%, which preserves market beta during secular bear markets while mitigating catastrophic peak-to-trough drawdowns.
+  - Rebalance transaction cost drag (15 bps) requires tuning of the no-trade band (1.5%) to prevent turnover churn during volatile transitional regimes.
+
 ---

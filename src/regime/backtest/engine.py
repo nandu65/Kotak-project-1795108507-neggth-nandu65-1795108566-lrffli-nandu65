@@ -420,3 +420,118 @@ class RegimeConditionedMC:
             f"If the regime transitions to Risk-Off within 90 days (assessed probability: {risk_off_prob_90d*100.0:.0f}%), worst-case tail risk expands to CVaR of {var_stats['cvar_95']*100.0:.1f}%.",
         ]
         return statements
+
+
+# ---------------------------------------------------------------------------
+# Block Bootstrap & Historical Stress Episodes (PDF Section A16.5 & A22.5)
+# ---------------------------------------------------------------------------
+
+def run_block_bootstrap_monte_carlo(
+    returns: pd.Series | np.ndarray,
+    n_bootstraps: int = 500,
+    block_size: int = 21,
+    rf_annual: float = 0.065,
+    seed: int = 42,
+) -> Dict[str, Any]:
+    r"""
+    Circular Block Bootstrap (Politis & Romano, 1994) to evaluate track record robustness.
+    """
+    arr = np.asarray(returns, dtype=float)
+    T = len(arr)
+    rng = np.random.default_rng(seed)
+
+    sharpes = np.zeros(n_bootstraps)
+    max_dds = np.zeros(n_bootstraps)
+    ann_returns = np.zeros(n_bootstraps)
+
+    n_blocks = int(np.ceil(T / block_size))
+
+    for b in range(n_bootstraps):
+        start_indices = rng.integers(0, T, size=n_blocks)
+        sample = []
+        for s in start_indices:
+            block = arr[np.arange(s, s + block_size) % T]
+            sample.extend(block)
+        sample = np.array(sample[:T])
+
+        ann_ret = float(np.mean(sample) * 252.0)
+        ann_vol = float(np.std(sample) * np.sqrt(252.0))
+        sr = float((ann_ret - rf_annual) / max(ann_vol, 1e-6))
+
+        wealth = np.cumprod(1.0 + sample)
+        peak = np.maximum.accumulate(wealth)
+        dd = (wealth - peak) / peak
+
+        sharpes[b] = sr
+        max_dds[b] = float(np.min(dd))
+        ann_returns[b] = ann_ret
+
+    return {
+        "n_bootstraps": n_bootstraps,
+        "mean_sharpe": float(np.mean(sharpes)),
+        "p05_sharpe": float(np.percentile(sharpes, 5.0)),
+        "p95_sharpe": float(np.percentile(sharpes, 95.0)),
+        "mean_max_drawdown": float(np.mean(max_dds)),
+        "worst_max_drawdown": float(np.min(max_dds)),
+        "prob_positive_sharpe": float(np.mean(sharpes > 0.0)),
+    }
+
+
+def evaluate_stress_episodes(
+    paths_df: pd.DataFrame,
+    episodes: Optional[Dict[str, Tuple[str, str]]] = None,
+) -> Dict[str, Dict[str, float]]:
+    r"""
+    Evaluate strategy performance across historical Indian stress episodes (PDF Section A16.5):
+    - 2008: Global Financial Crisis
+    - 2013: Taper Tantrum & INR Rupee Crisis
+    - 2020: COVID-19 Liquidity Shock
+    - 2022: Global Rate Hike & Geopolitical Shock
+    """
+    if episodes is None:
+        episodes = {
+            "2008_GFC": ("2008-01-01", "2009-03-31"),
+            "2013_Taper_Tantrum": ("2013-05-01", "2013-09-30"),
+            "2020_COVID_Crash": ("2020-01-01", "2020-06-30"),
+            "2022_Rate_Shock": ("2022-01-01", "2022-06-30"),
+        }
+
+    results = {}
+    for ep_name, (start_dt, end_dt) in episodes.items():
+        try:
+            sub = paths_df.loc[start_dt:end_dt]
+            if len(sub) < 10:
+                continue
+
+            strat_start = float(sub["strategy_wealth"].iloc[0])
+            strat_end = float(sub["strategy_wealth"].iloc[-1])
+            strat_ret = (strat_end / strat_start) - 1.0
+
+            bench_start = float(sub["benchmark_wealth"].iloc[0])
+            bench_end = float(sub["benchmark_wealth"].iloc[-1])
+            bench_ret = (bench_end / bench_start) - 1.0
+
+            # Sub-period peak-to-trough drawdowns
+            s_wealth = sub["strategy_wealth"].values
+            s_peak = np.maximum.accumulate(s_wealth)
+            s_mdd = float(np.min((s_wealth - s_peak) / s_peak))
+
+            b_wealth = sub["benchmark_wealth"].values
+            b_peak = np.maximum.accumulate(b_wealth)
+            b_mdd = float(np.min((b_wealth - b_peak) / b_peak))
+
+            results[ep_name] = {
+                "strategy_return": float(strat_ret),
+                "benchmark_return": float(bench_ret),
+                "alpha": float(strat_ret - bench_ret),
+                "strategy_mdd": s_mdd,
+                "benchmark_mdd": b_mdd,
+                "drawdown_mitigation": float(s_mdd - b_mdd),
+                "avg_equity_weight": float(sub["equity_weight"].mean()),
+                "trading_days": len(sub),
+            }
+        except Exception as e:
+            logger.debug("Episode %s not in index: %s", ep_name, e)
+
+    return results
+

@@ -5,6 +5,8 @@ from .engine import (
     WalkForwardBacktester,
     compute_deflated_sharpe_ratio,
     compute_probability_of_backtest_overfitting,
+    evaluate_stress_episodes,
+    run_block_bootstrap_monte_carlo,
 )
 
 __all__ = [
@@ -13,4 +15,7 @@ __all__ = [
     "RegimeConditionedMC",
     "compute_deflated_sharpe_ratio",
     "compute_probability_of_backtest_overfitting",
+    "run_block_bootstrap_monte_carlo",
+    "evaluate_stress_episodes",
 ]
+

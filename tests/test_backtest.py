@@ -100,3 +100,59 @@ def test_regime_conditioned_monte_carlo():
     narrative = mc.generate_ic_narrative(var_stats, current_dominant_regime="Risk-On")
     assert len(narrative) == 4
     assert any("Risk-On" in line for line in narrative)
+
+
+def test_block_bootstrap_robustness():
+    """Verify circular block bootstrap produces valid sampling distributions."""
+    from src.regime.backtest.engine import run_block_bootstrap_monte_carlo
+
+    rng = np.random.default_rng(42)
+    rets = rng.normal(0.0006, 0.012, 300)
+
+    boot_res = run_block_bootstrap_monte_carlo(rets, n_bootstraps=100, block_size=21, seed=42)
+    assert "mean_sharpe" in boot_res
+    assert "p05_sharpe" in boot_res
+    assert "p95_sharpe" in boot_res
+    assert "prob_positive_sharpe" in boot_res
+    assert boot_res["p05_sharpe"] <= boot_res["mean_sharpe"] <= boot_res["p95_sharpe"]
+    assert 0.0 <= boot_res["prob_positive_sharpe"] <= 1.0
+
+
+def test_stress_episodes_evaluation():
+    """Verify crisis episode evaluation across historical stress windows."""
+    from src.regime.backtest.engine import evaluate_stress_episodes
+
+    dates = pd.date_range("2020-01-01", "2020-06-30", freq="B")
+    # Simulate a crash drawdown and recovery
+    t = len(dates)
+    cum_bench = np.linspace(1.0, 0.65, t // 2).tolist() + np.linspace(0.65, 0.85, t - t // 2).tolist()
+    cum_strat = np.linspace(1.0, 0.75, t // 2).tolist() + np.linspace(0.75, 0.90, t - t // 2).tolist()
+
+    paths_df = pd.DataFrame(
+        {
+            "strategy_wealth": cum_strat,
+            "benchmark_wealth": cum_bench,
+            "equity_weight": [0.70] * (t // 2) + [0.90] * (t - t // 2),
+        },
+        index=dates,
+    )
+
+    stress_res = evaluate_stress_episodes(paths_df)
+    assert "2020_COVID_Crash" in stress_res
+    covid = stress_res["2020_COVID_Crash"]
+    assert "alpha" in covid
+    assert "drawdown_mitigation" in covid
+    assert covid["strategy_mdd"] > covid["benchmark_mdd"]  # Strategy had less severe drawdown
+
+
+def test_pbo_calculation():
+    """Verify Probability of Backtest Overfitting (CSCV)."""
+    rng = np.random.default_rng(42)
+    T, n_configs = 300, 10
+    # True skill config vs random noise configs
+    noise = rng.normal(0.0002, 0.012, size=(T, n_configs))
+    noise[:, 0] += 0.0008  # Superior config
+
+    pbo = compute_probability_of_backtest_overfitting(noise, n_splits=8)
+    assert 0.0 <= pbo <= 1.0
+
