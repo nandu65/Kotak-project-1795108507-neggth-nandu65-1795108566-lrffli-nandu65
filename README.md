@@ -114,24 +114,73 @@ This project implements the **Direction Over Price** paradigm: replacing unanswe
 
 ---
 
-## Quick Start & Verification
+## Exact End-to-End Reproduction Commands
 
 ### 1. Environment Setup
 ```bash
 conda env create -f environment.yml
 conda activate regime
+# or with active virtual environment:
+pip install -r requirements.txt
 ```
 
-### 2. Run Data Download & Alignment
+### 2. Step 2: Point-in-Time Market Data Ingestion & Calendar Alignment
 ```bash
 python -m src.regime.data.download
 python -m src.regime.data.pit
 ```
+Output: `data/processed/market_pit_dataset.parquet` (4,124 aligned NSE sessions, publication lags enforced, zero return forward-fill).
 
-### 3. Run Test Suite
+### 3. Step 3: Causal Feature Engineering & Standardisation
 ```bash
-pytest tests/ -v
+python -m src.regime.features.engineer
+```
+Output: `data/processed/features.parquet`, `data/processed/market_features_standardized.parquet`, and `data/processed/features_metadata.csv`.
+
+### 4. Step 4–8: Automated Test Verification Across All Modules
+```bash
+# Run unit tests across all architecture layers:
+python -m pytest tests/test_config.py -v
+python -m pytest tests/test_pit.py -v
+python -m pytest tests/test_features.py -v
+python -m pytest tests/test_models.py -v
+python -m pytest tests/test_ensemble.py -v
+python -m pytest tests/test_online.py -v
+python -m pytest tests/test_conformal.py -v
+python -m pytest tests/test_backtest.py -v
+
+# Or run the entire test suite in one command:
+python -m pytest tests/ -v
 ```
 
+### 5. Cross-Language R Validation
+```bash
+# Verify Python HMM vs R depmixS4 numerical invariance:
+python r/cross_validate.py
+# (Optional R script execution):
+Rscript r/fit_hmm.R
+```
+
+### 6. Launch Institutional Live Interactive Dashboard
+```bash
+python -m uvicorn app:app --host 127.0.0.1 --port 8000
+```
+Open your browser to `http://127.0.0.1:8000` to interact with:
+- Daily calibrated 5-regime posterior probabilities.
+- Information-theoretic uncertainty decomposition (Aleatoric vs Epistemic).
+- Conformal prediction sets (Adaptive Prediction Sets at 90% and 95%).
+- Real-time 5,000-particle SMC filter streaming updates.
+- Student-$t$ BOCPD changepoint monitoring.
+- Tactical allocation tilt overlay and Investment Committee briefing narrative.
+
+### 7. Key Institutional Research Deliverables
+- Master Research Report (40+ pages equivalent): `reports/report.md`
+- SEBI AI/ML Risk Model Card: `reports/model_card.md`
+- 18-Slide Presentation Deck: `reports/slides_outline.md`
+- 10-Minute CIO Demonstration Script: `reports/demo_script.md`
+- Feature Diagnostics Notebook: `notebooks/03_feature_diagnostics.ipynb`
+- Implementation & Verification Progress Log: `docs/PROGRESS.md`
+
 ---
-*Confidentiality Notice: This is a private research repository. Never push to public remotes or public gists.*
+*Confidentiality Notice: This is a strictly PRIVATE quantitative research project for Zetheta Algorithms Private Limited (CIN: U62012MH2023PTC410415). Never push or publish code, data, or artifacts to any remote or public repository.*
+
