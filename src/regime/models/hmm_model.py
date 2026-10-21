@@ -105,13 +105,16 @@ class GaussianRegimeHMM(BaseRegimeModel):
             gamma = np.exp(log_gamma)
             gamma = gamma / np.sum(gamma, axis=1, keepdims=True)
 
-            # Posterior transition probabilities \xi_t(i, j) = P(s_t = i, s_{t+1} = j | y)
-            # log \xi_{t}(i, j) = log \alpha_t(i) + log A_{ij} + log B_{t+1}(j) + log \beta_{t+1}(j) - ll
+            # Vectorized posterior transition probabilities \xi_t(i, j) = P(s_t = i, s_{t+1} = j | y)
             log_A = np.log(np.clip(self.A, 1e-12, 1.0))
-            xi_sum = np.zeros((K, K))
-            for t in range(T - 1):
-                log_xi_t = log_alpha[t, :, None] + log_A + log_B[t + 1, None, :] + log_beta[t + 1, None, :] - ll
-                xi_sum += np.exp(log_xi_t)
+            log_xi = (
+                log_alpha[:-1, :, None]
+                + log_A[None, :, :]
+                + log_B[1:, None, :]
+                + log_beta[1:, None, :]
+                - ll
+            )
+            xi_sum = np.sum(np.exp(log_xi), axis=0)
 
             # M-step: Parameter updates
             self.pi = gamma[0] / np.sum(gamma[0])
@@ -264,8 +267,7 @@ class GaussianRegimeHMM(BaseRegimeModel):
 
         # Induction
         for t in range(1, T):
-            for j in range(K):
-                log_alpha[t, j] = logsumexp(log_alpha[t - 1] + log_A[:, j]) + log_B[t, j]
+            log_alpha[t] = logsumexp(log_alpha[t - 1, :, None] + log_A, axis=0) + log_B[t]
 
         ll = float(logsumexp(log_alpha[-1]))
         return log_alpha, ll
@@ -281,7 +283,6 @@ class GaussianRegimeHMM(BaseRegimeModel):
 
         # Backward induction
         for t in range(T - 2, -1, -1):
-            for i in range(K):
-                log_beta[t, i] = logsumexp(log_A[i, :] + log_B[t + 1, :] + log_beta[t + 1, :])
+            log_beta[t] = logsumexp(log_A + log_B[t + 1] + log_beta[t + 1], axis=1)
 
         return log_beta

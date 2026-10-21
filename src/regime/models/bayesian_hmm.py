@@ -107,6 +107,22 @@ class BayesianRegimeHMM(BaseRegimeModel):
         # MCMC Diagnostics
         self.diagnostics: Dict[str, Any] = {}
 
+    @property
+    def pi(self) -> np.ndarray:
+        return np.ones(self.n_regimes) / self.n_regimes
+
+    @property
+    def P(self) -> np.ndarray:
+        return self.mean_P
+
+    @property
+    def mu(self) -> np.ndarray:
+        return self.mean_mu
+
+    @property
+    def sigma(self) -> np.ndarray:
+        return self.mean_sigma
+
     def fit(self, X: np.ndarray | pd.DataFrame, y: Optional[Any] = None) -> BayesianRegimeHMM:
         """
         Fit Bayesian HMM by sampling parameter posteriors with forward marginalisation.

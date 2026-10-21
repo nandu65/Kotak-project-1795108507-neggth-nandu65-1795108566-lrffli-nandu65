@@ -62,4 +62,32 @@
   - Initial 252 trading days (year 2010) contain expanding burn-in NaNs before standardisation stabilizes.
   - Features dependent on 252-day lookbacks have $>5\%$ missing data at the beginning of the 16-year historical timeline (flagged in metadata table).
 
+## Step 4: Diverse Regime Modeling Suite (src/regime/models/)
+- **What Was Built:**
+  - Common interface `BaseRegimeModel` (`fit(train)` / `predict_proba(test)`), strict simplex normalization $\sum p_k = 1$, and zero future leakage.
+  - `src/regime/models/hmm.py` & `hmm_model.py`: 5-regime Gaussian HMM with vectorized Baum-Welch EM, BIC model selection, multi-start restarts, and post-hoc economic moment sorting resolving label switching strictly inside training windows.
+  - `src/regime/models/bayes_hmm.py` & `bayesian_hmm.py`: Bayesian HMM marginalising discrete latent states via exact forward log-marginalisation, sticky Dirichlet transition priors, and MCMC diagnostics ($\hat{R}$, ESS, divergences).
+  - `src/regime/models/rsvar.py`: Markov-Switching Vector Autoregression modeling cross-asset transmission (returns, VIX, breadth), regime-conditional covariance matrices, and impulse response functions (IRFs).
+  - `src/regime/models/bdl.py`: Bayesian Deep Ensemble (MC-Dropout) with walk-forward target generation and information-theoretic uncertainty decomposition into total entropy, epistemic uncertainty (mutual information), and aleatoric uncertainty.
+  - `src/regime/models/foundation.py`: Foundation model regime head with Chronos (`amazon/chronos-t5-small`) forecast feature generator and documented pure-vectorized `TemporalPatchEncoder` fallback with linear probing head.
+- **Real Test Output:**
+  ```text
+  ============================= test session starts =============================
+  platform win32 -- Python 3.14.3, pytest-9.1.1, pluggy-1.7.0
+  rootdir: D:\bayesian-regime-detection-APK
+  plugins: anyio-4.12.1
+  collected 5 items
+
+  tests/test_models.py::test_gaussian_hmm_and_selection PASSED             [ 20%]
+  tests/test_models.py::test_bayesian_hmm_diagnostics_and_marginalisation PASSED [ 40%]
+  tests/test_models.py::test_markov_switching_var PASSED                   [ 60%]
+  tests/test_models.py::test_bayesian_deep_ensemble_uncertainty PASSED     [ 80%]
+  tests/test_models.py::test_foundation_model_and_fallback PASSED          [100%]
+
+  ============================= 5 passed in 38.43s ==============================
+  ```
+- **Known Weaknesses:**
+  - MCMC sampling with sticky Dirichlet prior requires multi-second sampling budgets per chain; short chains are defaulted for fast unit testing and walk-forward evaluations.
+  - Remote HuggingFace transformer weights for Chronos require internet access; offline `TemporalPatchEncoder` fallback is automatically used when offline or in sandboxed execution.
+
 ---
