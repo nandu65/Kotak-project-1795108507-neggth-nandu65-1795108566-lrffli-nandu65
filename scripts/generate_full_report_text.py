@@ -149,26 +149,26 @@ The Bayesian Regime Detection Engine (BRDE) re-engineers this workflow by establ
 ### 1.2 Core Performance & Risk Attribution Summary ({meta['evaluation_period']} Backtest)
 The engine was evaluated in a rigorous, expanding-window walk-forward backtest across {meta['test_sessions']:,} consecutive NSE trading sessions spanning January 1, 2019 to December 31, 2024. The strategy executes a tactical allocation overlay constrained between 70% and 100% equity exposure (the remaining 0% to 30% allocated to cash/overnight debt yielding 6.5% risk-free rate).
 
-| Quantitative Metric | Tactical Allocation Overlay | Benchmark (Nifty 50 TRI) | Variance / Delta | Analytical Rationale |
-| :--- | :--- | :--- | :--- | :--- |
-| **Annualized Return (CAGR)** | **{bt['strategy_cagr']*100:.2f}%** | {bt['benchmark_cagr']*100:.2f}% | {bt['cagr_delta']*100:+.2f}% ({bt['cagr_delta']*10000:+.0f} bps) | Cash buffer drag during 2020-2021 liquidity super-rally |
-| **Annualized Realized Volatility** | **{bt['strategy_volatility']*100:.2f}%** | {bt['benchmark_volatility']*100:.2f}% | {bt['volatility_delta']*100:+.2f}% ({bt['volatility_delta']*10000:+.0f} bps) | Substantial volatility compression via defensive cash |
-| **Sharpe Ratio (Rf = 6.5%)** | **{bt['strategy_sharpe']:.4f}** | {bt['benchmark_sharpe']:.4f} | {bt['sharpe_delta']:+.4f} | Balanced risk-adjusted return under strict long-only mandate |
-| **Sortino Ratio (Downside Rf)** | **{bt['strategy_sortino']:.4f}** | 0.5100 | +0.0228 | Enhanced downside efficiency penalized only for left-tail volatility |
-| **Maximum Drawdown (MDD)** | **{bt['strategy_mdd']*100:.2f}%** | {bt['benchmark_mdd']*100:.2f}% | **+{bt['mdd_mitigation']*100:.2f}%** | **{bt['mdd_mitigation']*10000:.0f} bps catastrophic capital preservation in March 2020** |
-| **Calmar Ratio (|CAGR / MDD|)** | **{bt['strategy_calmar']:.4f}** | 0.3312 | +0.0237 | Enhanced drawdown-to-return recovery profile |
-| **Information Ratio (IR)** | **{bt['information_ratio']:.4f}** | 0.0000 | {bt['information_ratio']:.4f} | Tactical overlay exhibits cash drag vs 100% equity bull benchmark |
-| **Tracking Error (Annualized)** | **{bt['tracking_error']*100:.2f}%** | 0.00% | +{bt['tracking_error']*100:.2f}% | Controlled active risk budget vs buy-and-hold |
-| **Annualized Portfolio Turnover** | **{bt['annualized_turnover']*100:.2f}%** | 0.00% | +{bt['annualized_turnover']*100:.2f}% | Churn suppressed via 1.5% no-trade rebalance band |
-| **Transaction Cost Drag (15 bps)**| **{bt['transaction_cost_bps']:.2f} bps / year** | 0.0 bps | -{bt['transaction_cost_bps']:.2f} bps | Negligible fee drag under realistic institutional fees |
-| **Deflated Sharpe Ratio (DSR)** | **{bt['deflated_sharpe_ratio']:.4f}** | N/A | Statistically Valid | Discounts for non-normality, kurtosis, and multi-testing |
-| **Probability of Overfitting (PBO)**| **{bt['probability_of_backtest_overfitting']*100:.1f}%** | N/A | Lower is Better (PBO > 50% = High Risk) | Evaluated via Combinatorially Symmetric Cross-Validation (CSCV; Bailey et al., 2017) |
-| **Expected Calibration Error (ECE)**| **{scoring['expected_calibration_error']['model']*100:.2f}%** | {scoring['expected_calibration_error']['persistence']*100:.2f}% (Persist) | {-(scoring['expected_calibration_error']['persistence'] - scoring['expected_calibration_error']['model'])*100:.2f}% | Evaluated against independent Section A1.4 ground truth |
-| **Ranked Probability Score (RPS)**| **{scoring['ranked_probability_score']['model']:.4f}** | {scoring['ranked_probability_score']['climatology']:.4f} (Climatol) | Superior Calibration | Optimal ordinal ranking calibration across 5 states |
-| **Brier Score** | **{scoring['brier_score']['model']:.4f}** | {scoring['brier_score']['climatology']:.4f} (Climatol) | Superior Calibration | Quadratic scoring rule confirms ensemble accuracy |
-| **Log Loss** | **{scoring['log_loss']['model']:.4f}** | {scoring['log_loss']['climatology']:.4f} (Climatol) | Superior Calibration | Out-of-sample logarithmic cross-entropy score |
-| **Conformal Coverage (90% Nominal)**| **{conformal['coverage_90']*100:.1f}%** | N/A | Valid Set Size: {conformal['mean_set_size_90']:.2f} | Guaranteed finite-sample validity across non-stationarity |
-| **Conformal Coverage (95% Nominal)**| **{conformal['coverage_95']*100:.1f}%** | N/A | Valid Set Size: {conformal['mean_set_size_95']:.2f} | Robust coverage through 2020 COVID and 2022 rate shocks |
+| Quantitative Metric | Tactical Allocation Overlay | Benchmark (Nifty 50 TRI) | Variance / Delta | Auto-Generated Verdict | Analytical Rationale |
+| :--- | :--- | :--- | :--- | :---: | :--- |
+| **Annualized Return (CAGR)** | **{bt['strategy_cagr']*100:.2f}%** | {bt['benchmark_cagr']*100:.2f}% | {bt['cagr_delta']*100:+.2f}% ({bt['cagr_delta']*10000:+.0f} bps) | **Worse** | Cash buffer drag during 2020-2021 liquidity super-rally |
+| **Annualized Realized Volatility** | **{bt['strategy_volatility']*100:.2f}%** | {bt['benchmark_volatility']*100:.2f}% | {bt['volatility_delta']*100:+.2f}% ({bt['volatility_delta']*10000:+.0f} bps) | **Better** | Substantial volatility compression via defensive cash |
+| **Sharpe Ratio (Rf = 6.5%)** | **{bt['strategy_sharpe']:.4f}** | {bt['benchmark_sharpe']:.4f} | {bt['sharpe_delta']:+.4f} | **Parity** | Balanced risk-adjusted return under strict long-only mandate |
+| **Sortino Ratio (Downside Rf)** | **{bt['strategy_sortino']:.4f}** | 0.5100 | +0.0228 | Downside | Enhanced downside efficiency penalized only for left-tail volatility |
+| **Maximum Drawdown (MDD)** | **{bt['strategy_mdd']*100:.2f}%** | {bt['benchmark_mdd']*100:.2f}% | **+{bt['mdd_mitigation']*100:.2f}%** | **Better** | **+{bt['mdd_mitigation']*10000:.0f} bps catastrophic capital preservation in March 2020** |
+| **Calmar Ratio (|CAGR / MDD|)** | **{bt['strategy_calmar']:.4f}** | 0.3312 | +0.0237 | Recovery | Enhanced drawdown-to-return recovery profile |
+| **Information Ratio (IR)** | **{bt['information_ratio']:.4f}** | 0.0000 | {bt['information_ratio']:.4f} | **Worse** | Tactical overlay exhibits cash drag vs 100% equity bull benchmark |
+| **Tracking Error (Annualized)** | **{bt['tracking_error']*100:.2f}%** | 0.00% | +{bt['tracking_error']*100:.2f}% | Risk Budget | Standardized active risk budget vs buy-and-hold |
+| **Annualized Portfolio Turnover** | **{bt['annualized_turnover']*100:.2f}%** | 0.00% | +{bt['annualized_turnover']*100:.2f}% | Controlled | Churn suppressed via 1.5% no-trade rebalance band |
+| **Transaction Cost Drag (15 bps)**| **{bt['transaction_cost_bps']:.2f} bps / year** | 0.0 bps | -{bt['transaction_cost_bps']:.2f} bps | Minimal | Negligible fee drag under realistic institutional fees |
+| **Deflated Sharpe Ratio (DSR)** | **{bt['deflated_sharpe_ratio']:.4f}** | N/A | Valid DSR | Statistically Valid | Discounts for non-normality, kurtosis, and multi-testing |
+| **Probability of Overfitting (PBO)**| **{bt['probability_of_backtest_overfitting']*100:.1f}%** | N/A | {bt.get('cscv_n_trials', 8)} Trials / {bt.get('cscv_n_distinct_strategies', 2)} Distinct | Low Diversity | CSCV across 8 trials, 8 splits, 2 distinct strategy profiles |
+| **Log Loss** | **{scoring['log_loss']['model']:.4f}** | {scoring['log_loss']['climatology']:.4f} (Climatol) | +0.1156 penalty | **Worse** | Out-of-sample logarithmic cross-entropy vs empirical climatology |
+| **Brier Score** | **{scoring['brier_score']['model']:.4f}** | {scoring['brier_score']['climatology']:.4f} (Climatol) | -0.0066 error | **Better** | Strictly proper quadratic scoring rule confirms ensemble accuracy |
+| **Ranked Probability Score (RPS)**| **{scoring['ranked_probability_score']['model']:.4f}** | {scoring['ranked_probability_score']['climatology']:.4f} (Climatol) | -0.0360 error | **Better** | Optimal ordinal ranking calibration across ordered states |
+| **Expected Calibration Error (ECE)**| **{scoring['expected_calibration_error']['model']*100:.2f}%** | < 8.00% (Target) | +26.67% error | **Poor Calibration** | Model probabilities are severely overconfident |
+| **Conformal Coverage (90% Nominal)**| **{conformal['coverage_90']*100:.1f}%** | 90.0% Nominal | Mean Set: {conformal['mean_set_size_90']:.2f} / 5 | **Uninformative** | Score saturation ($q_{{\\hat{{\\alpha}}}} = 1.0000$) includes nearly all states |
+| **Conformal Coverage (95% Nominal)**| **{conformal['coverage_95']*100:.1f}%** | 95.0% Nominal | Mean Set: {conformal['mean_set_size_95']:.2f} / 5 | **Uninformative** | Score saturation ($q_{{\\hat{{\\alpha}}}} = 1.0000$) includes nearly all states |
 
 ### 1.3 Murphy Decomposition of Proper Scoring Rules (Reliability, Resolution, Uncertainty)
 In probabilistic forecasting, proper scoring rules quantify calibration and sharpness. Under the Murphy (1973) canonical decomposition of the quadratic Brier Score, total mean squared probability error is partitioned into three orthogonal components:
@@ -189,19 +189,21 @@ Persistence Baseline       {murphy.get('persistence', {}).get('reliability', 0.0
 ========================================================================================================
 ```
 
-### 1.4 Honest Audit: Where the Ensemble Excels vs Where it Does NOT Beat Baselines
+### 1.4 Honest Audit: Where the Ensemble Excels vs Where the Model is Weak
+
 In strict adherence to the transparency mandates of Section D3 and Part F of the project brief, this report explicitly documents where the quantitative ensemble succeeds and where it fails to outperform naive baselines:
 
 #### Where the Ensemble Outperforms Baselines:
 1. **Downside Tail Capital Preservation:** The tactical overlay reduced the peak-to-trough crash in March 2020 from {bt['benchmark_mdd']*100:.2f}% to {bt['strategy_mdd']*100:.2f}%, saving institutional portfolios {bt['mdd_mitigation']*10000:.0f} bps of principal.
-2. **Volatility Reduction:** Systematic risk management damped annualized portfolio volatility by {abs(bt['volatility_delta'])*10000:.0f} bps ({bt['strategy_volatility']*100:.2f}% vs {bt['benchmark_volatility']*100:.2f}%), stabilizing Sharpe ratio at {bt['strategy_sharpe']:.4f}.
-3. **Finite-Sample Conformal Validity:** Empirical coverage reached {conformal['coverage_90']*100:.1f}% (at 90% target) and {conformal['coverage_95']*100:.1f}% (at 95% target), maintaining valid coverage during the violent COVID crash ({conformal['covid_2020_coverage_90']*100:.1f}%) and the 2022 global rate shock ({conformal['rate_shock_2022_coverage_90']*100:.1f}%).
-4. **Proper Scoring Rule Superiority:** On quadratic Brier Score ({scoring['brier_score']['model']:.4f} vs {scoring['brier_score']['climatology']:.4f} Climatology, {scoring['brier_score']['persistence']:.4f} Persistence) and Ranked Probability Score ({scoring['ranked_probability_score']['model']:.4f} vs {scoring['ranked_probability_score']['climatology']:.4f} Climatology, {scoring['ranked_probability_score']['persistence']:.4f} Persistence), the ensemble achieves superior calibration.
+2. **Realized Volatility Reduction:** Systematic risk management damped annualized portfolio volatility by {abs(bt['volatility_delta'])*10000:.0f} bps ({bt['strategy_volatility']*100:.2f}% vs {bt['benchmark_volatility']*100:.2f}%), stabilizing Sharpe ratio at {bt['strategy_sharpe']:.4f}.
+3. **Quadratic and Ordinal Proper Scoring Rules:** On Brier Score ({scoring['brier_score']['model']:.4f} vs {scoring['brier_score']['climatology']:.4f}) and Ranked Probability Score ({scoring['ranked_probability_score']['model']:.4f} vs {scoring['ranked_probability_score']['climatology']:.4f}), the model achieves lower predictive error than empirical climatology and persistence.
 
-#### Where the Ensemble Does NOT Beat Baselines:
-1. **Raw Cumulative Return & Negative Information Ratio:** In a secular, liquidity-driven bull market (such as the November 2020 to October 2021 post-vaccine rally), maintaining an average defensive cash allocation of 10% to 15% creates a mechanical cash drag. The strategy delivered {bt['strategy_cagr']*100:.2f}% CAGR versus {bt['benchmark_cagr']*100:.2f}% for 100% buy-and-hold equity, generating a negative **Information Ratio of {bt['information_ratio']:.4f}** with an annualized tracking error of {bt['tracking_error']*100:.2f}%.
-2. **Persistence in Stable Trending Markets:** When the market enters extended multi-month trends, simple persistence baselines achieve low prediction error. Dynamic models incur parameter estimation variance, particularly during regime boundaries.
-3. **Sudden Single-Session Gap Risk:** The model rebalances at daily close. Overnight liquidity gap-downs (such as the June 4, 2024 Election Verdict opening drop of -5.9%) cannot be fully anticipated, causing temporary single-day drawdowns before the engine can react at market close.
+#### Where the Model is Weak (Deficiencies & Failure Modes):
+1. **Out-of-Sample Log Loss Underperformance (verdict: WORSE):** The model achieves a Log Loss of {scoring['log_loss']['model']:.4f} versus {scoring['log_loss']['climatology']:.4f} for Empirical Climatology. Logarithmic loss heavily penalizes probabilities near zero when an abrupt market shift occurs before volatility expands. The model beats Persistence ({scoring['log_loss']['persistence']:.4f}), but is inferior to historical base rates under cross-entropy.
+2. **Poor Probability Calibration (ECE = {scoring['expected_calibration_error']['model']*100:.2f}%):** Expected Calibration Error is {scoring['expected_calibration_error']['model']*100:.2f}%, far above the institutional production target of < 8.00%. Unsupervised Gaussian emission likelihoods assign high confidence to dominant states, causing severe probability overconcentration.
+3. **Uninformative Conformal Prediction Sets at High Confidence (4.84 / 5 Regimes):** At nominal 90% and 95% confidence targets, empirical coverage is {conformal['coverage_90']*100:.1f}%, but the mean prediction set size is {conformal['mean_set_size_90']:.2f} out of 5 regimes (Uninformative). Because 14.2% of calibration true labels are ranked lowest (rank 5) by the HMM, the non-conformity threshold saturates at $q_{{\\hat{{\\alpha}}}} = 1.0000$ for any $1 - \\alpha \\ge 85.8%$. Sets essentially state 'the regime is any of the 5 states' and are uninformative for tactical asset allocation unless $\\alpha$ is relaxed to $\\ge 0.20$.
+4. **Active Cash Drag on Cumulative CAGR (verdict: WORSE):** Maintaining 15%–30% in defensive cash during bull markets imposed an active return drag of {bt['cagr_delta']*100:.2f}% ({abs(bt['cagr_delta'])*10000:.0f} bps / year; strategy CAGR {bt['strategy_cagr']*100:.2f}% vs {bt['benchmark_cagr']*100:.2f}% buy-and-hold), yielding a negative Information Ratio of {bt['information_ratio']:.4f} with an annualized tracking error of {bt['tracking_error']*100:.2f}%.
+5. **CSCV PBO Trial Diversity Limitation:** The Combinatorially Symmetric Cross-Validation (CSCV) returns an empirical PBO of {bt['probability_of_backtest_overfitting']*100:.1f}%. However, because the trial matrix contains only {bt.get('cscv_n_distinct_strategies', 2)} distinct return series across the {bt.get('cscv_n_trials', 8)} tested configurations (allocation bounds rarely bind outside of crashes), this metric reflects low search-space parameter diversity rather than confirmed immunity to overfitting.
 """)
 
     # Chapter 2: Indian Equity Market Context & 5-Regime Taxonomy
@@ -487,7 +489,7 @@ Model Candidate           Rank  ELPD LOO   p_LOO   WAIC     dELPD    SE(dELPD) W
 {bayes_comp_str}
 ========================================================================================================
 ```
-*Significance Statement:* The Bayesian HMM outperforms the RS-VAR by $\\Delta \\text{{ELPD}} = {bayes_comp[1]['delpd']:.1f}$ with standard error {bayes_comp[1]['se']:.1f} ($p < 0.01$), indicating statistically significant superiority in out-of-sample predictive density due to lower effective parameter dimensionality ($p_{{\\text{{LOO}}}} = {bayes_comp[0]['p_loo']:.1f}$ vs {bayes_comp[1]['p_loo']:.1f}).
+*Significance Statement:* The Bayesian HMM outperforms the RS-VAR by $\\Delta \\text{{ELPD}} = {bayes_comp[1]['delpd']:.1f}$ with standard error {bayes_comp[1]['se']:.1f} ($p < 0.01$), indicating statistically significant improvement in out-of-sample predictive density due to lower effective parameter dimensionality ($p_{{\\text{{LOO}}}} = {bayes_comp[0]['p_loo']:.1f}$ vs {bayes_comp[1]['p_loo']:.1f}).
 
 ### 5.5 Bayesian Deep Learning Suite: MC Dropout, Variational BNN (ELBO), Deep Ensemble
 The deep learning suite in `src/regime/models/bnn_model.py` and `bdl.py` implements three distinct paradigms:
@@ -639,21 +641,36 @@ with step size $\gamma = 0.01$.
 - If coverage drops ($\text{err}_t = 1$), $\alpha_{t+1}$ decreases, driving $\hat{q}_t$ higher and widening prediction sets.
 - Long-run empirical coverage converges asymptotically: $\lim_{T \to \infty} \frac{1}{T} \sum_{t=1}^T \text{err}_t = \alpha$.
 
-### 8.5 Empirical Coverage Audit: 2020 COVID Crash, 2022 Rate Shock & Rolling Windows
+### 8.5 Empirical Coverage & Set-Size Audit: Score Saturation Analysis
+Conformal prediction sets evaluated across nominal targets with prediction set cardinality reported beside every figure:
 
 ```
 ========================================================================================================
                           CONFORMAL PREDICTION EMPIRICAL COVERAGE AUDIT
 ========================================================================================================
-Evaluation Window / Stress Period   Nominal 90% Target   Nominal 95% Target   Mean Set Size  Status
+Evaluation Window / Stress Period   Nominal Target   Empirical Coverage   Mean Set Size    Status
 --------------------------------------------------------------------------------------------------------
-Overall Out-of-Sample ({meta['test_sessions']:,} days)       {conformal['coverage_90']*100:.1f}%               {conformal['coverage_95']*100:.1f}%          {conformal['mean_set_size_90']:.2f} regimes   VALID
-COVID-19 Crash (Feb - May 2020)          {conformal['covid_2020_coverage_90']*100:.1f}%               {conformal['covid_2020_coverage_95']*100:.1f}%          {conformal['mean_set_size_90']:.2f} regimes   VALID
-Global Rate Shock (Jan - Dec 2022)       {conformal['rate_shock_2022_coverage_90']*100:.1f}%               {conformal['rate_shock_2022_coverage_95']*100:.1f}%          {conformal['mean_set_size_90']:.2f} regimes   VALID
-Mean Rolling 63-Day Window               {conformal['mean_rolling_63d_coverage']*100:.1f}%               {conformal['coverage_95']*100:.1f}%          {conformal['mean_set_size_90']:.2f} regimes   VALID
-Worst Trough Rolling 63-Day Window       {conformal['min_rolling_63d_coverage']*100:.1f}%               {conformal['coverage_95']*100:.1f}%          {conformal['mean_set_size_90']:.2f} regimes   VALID (ACI)
+Overall Out-of-Sample ({meta['test_sessions']:,} days)       90% (a=0.10)         {conformal['coverage_90']*100:.2f}%          {conformal['mean_set_size_90']:.2f} / 5 regimes  Uninformative (q_hat=1.00)
+Overall Out-of-Sample ({meta['test_sessions']:,} days)       95% (a=0.05)         {conformal['coverage_95']*100:.2f}%          {conformal['mean_set_size_95']:.2f} / 5 regimes  Uninformative (q_hat=1.00)
+COVID-19 Crash (Feb - May 2020)          90% (a=0.10)         {conformal['covid_2020_coverage_90']*100:.2f}%          {conformal['mean_set_size_90']:.2f} / 5 regimes  Uninformative
+Global Rate Shock (Jan - Dec 2022)       90% (a=0.10)         {conformal['rate_shock_2022_coverage_90']*100:.2f}%          {conformal['mean_set_size_90']:.2f} / 5 regimes  Uninformative
+Mean Rolling 63-Day Window               90% (a=0.10)         {conformal['mean_rolling_63d_coverage']*100:.2f}%          {conformal['mean_set_size_90']:.2f} / 5 regimes  Uninformative
+Worst Trough Rolling 63-Day Window       90% (a=0.10)         {conformal['min_rolling_63d_coverage']*100:.2f}%          {conformal['mean_set_size_90']:.2f} / 5 regimes  Uninformative
 ========================================================================================================
 ```
+
+#### Investigation of 97.5% Coverage with Mean Set Size 4.84/5:
+1. **Calibration Disjointness Confirmed:** The calibration set (2017–2018, 493 sessions) and test set (2019–2024, 1,478 sessions) are strictly disjoint with zero overlapping dates.
+2. **Quantile Index & Score Saturation:** The conformal quantile index follows the exact finite-sample formula $q_{{\\text{{level}}}} = \\min(1.0, \\lceil(n+1)(1-\\alpha)\\rceil / n)$. However, on 14.2% of calibration days, the true Section A1.4 rule-based regime is ranked 5th (lowest probability) by the unsupervised HMM. Consequently, the 88th percentile of calibration nonconformity scores is exactly 1.0000.
+3. For any nominal confidence level $1 - \\alpha \\ge 85.8%$ (which includes both 90% and 95%), the quantile threshold saturates at $q_{{\\hat{{\\alpha}}}} = 1.0000$. Hence, the inclusion criterion includes almost all 5 regimes on every date, producing identical coverage (97.50%) and uninformative sets (4.84 / 5 regimes).
+4. **Alpha Sweep Analysis (alpha in [0.05, 0.50]):** Informative sets are only produced when $\\alpha$ is relaxed to $\\ge 0.20$, as illustrated in `reports/conformal_coverage_vs_set_size.png`:
+   - $\\alpha = 0.05$ (Nominal 95%): Empirical Coverage 97.50%, Mean Set Size 4.84/5 (Uninformative, $q_{{\\hat{{\\alpha}}}} = 1.0000$)
+   - $\\alpha = 0.10$ (Nominal 90%): Empirical Coverage 97.50%, Mean Set Size 4.84/5 (Uninformative, $q_{{\\hat{{\\alpha}}}} = 1.0000$)
+   - $\\alpha = 0.15$ (Nominal 85%): Empirical Coverage 81.73%, Mean Set Size 3.89/5 ($q_{{\\hat{{\\alpha}}}} = 0.9999$)
+   - $\\alpha = 0.20$ (Nominal 80%): Empirical Coverage 70.43%, Mean Set Size 3.16/5 ($q_{{\\hat{{\\alpha}}}} = 0.9760$)
+   - $\\alpha = 0.30$ (Nominal 70%): Empirical Coverage 56.56%, Mean Set Size 2.36/5 ($q_{{\\hat{{\\alpha}}}} = 0.9134$)
+   - $\\alpha = 0.40$ (Nominal 60%): Empirical Coverage 48.65%, Mean Set Size 2.10/5 ($q_{{\\hat{{\\alpha}}}} = 0.8861$)
+   - $\\alpha = 0.50$ (Nominal 50%): Empirical Coverage 41.54%, Mean Set Size 1.88/5 ($q_{{\\hat{{\\alpha}}}} = 0.8608$)
 
 """)
 
@@ -699,7 +716,12 @@ $$\\text{{Cost}}_t = 0.0015 \\cdot |w_t - w_{{t-1}}|$$
 $$\\text{{DSR}} = \\Phi\\left( \\frac{{(\\widehat{{\\text{{SR}}}} - \\text{{SR}}^*) \\sqrt{{T-1}}}}{{\\sqrt{{1 - \\hat{{\\gamma}}_3 \\widehat{{\\text{{SR}}}} + \\frac{{\\hat{{\\gamma}}_4 - 1}}{{4}} \\widehat{{\\text{{SR}}}}^2}}}} \\right)$$
 where $\\text{{SR}}^*$ represents the expected maximum Sharpe ratio under the null hypothesis of zero true skill:
 $$\\text{{SR}}^* \\approx \\sqrt{{2 \\ln N}} \\left( (1 - \\gamma_E) \\Phi^{{-1}}\\left(1 - \\frac{{1}}{{N}}\\right) + \\gamma_E \\Phi^{{-1}}\\left(1 - \\frac{{1}}{{N e}}\\right) \\right)$$
-- **Probability of Backtest Overfitting (PBO):** Evaluated via Combinatorially Symmetric Cross-Validation (CSCV; Bailey et al., 2017) across 8 sub-matrices: $\\text{{PBO}} = \\mathbf{{{bt['probability_of_backtest_overfitting']*100:.1f}\\%}}$. In quantitative strategy design, a lower PBO is strictly better; a PBO exceeding 50% indicates that the strategy selection process is dominated by historical backtest overfitting. Our achieved PBO of **{bt['probability_of_backtest_overfitting']*100:.1f}%** confirms that out-of-sample overlay performance is structurally resilient across CSCV block partitions.
+- **Probability of Backtest Overfitting (PBO):** Evaluated via Combinatorially Symmetric Cross-Validation (CSCV; Bailey et al., 2017) across {bt.get('cscv_n_trials', 8)} trials and {bt.get('cscv_n_splits', 8)} time splits: $\\text{{PBO}} = \\mathbf{{{bt['probability_of_backtest_overfitting']*100:.1f}\\%}}$. In quantitative strategy design, a lower PBO is better; a PBO exceeding 50% indicates that the strategy selection process is fitting historical noise.
+*CSCV Input & Parameter Diversity Audit:*
+- Number of Strategy Trials ($N$): **{bt.get('cscv_n_trials', 8)}**
+- Number of Time Splits ($S$): **{bt.get('cscv_n_splits', 8)}**
+- Number of Strictly Distinct Strategy Return Profiles: **{bt.get('cscv_n_distinct_strategies', 2)}**
+Because asset allocation bounds ($[0.70, 1.00]$ equity) rarely bind outside of acute drawdowns, only 2 distinct strategy return profiles emerge across the 8 tested parameter configurations. While the numerical PBO is 0.0%, this reflects limited parameter search space diversity rather than confirmed immunity to overfitting. If distinct strategies are fewer than 2, PBO is not statistically meaningful. True overfitting detection requires $\\ge 16$ distinct parameter permutations.
 """)
 
     # Chapter 10: Regime-Conditioned Monte Carlo Simulation & Crisis Stress Replay

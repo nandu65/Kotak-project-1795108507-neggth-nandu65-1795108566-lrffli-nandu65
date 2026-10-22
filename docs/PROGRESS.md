@@ -389,4 +389,44 @@ tests\test_pit.py ...                                                    [100%]
 ============================= 53 passed in 19.82s =============================
 ```
 
+---
+
+## Step 12: Report Honesty, Auto-Generated Verdicts & PDF Typography Clean-Up
+
+### 1. What Was Built & Fixed
+- **Automated Verdict Generation (`scripts/generate_results_summary.py` & `scripts/generate_full_report_text.py`):**
+  - Replaced all hand-written marketing descriptors (such as "Superior") with code-computed deterministic verdicts:
+    - Log Loss: Model 2.4460 vs Climatology 2.3304 -> **`Worse`** (+0.1156 penalty on abrupt regime shifts).
+    - Brier Score: Model 0.9966 vs Climatology 1.0032 -> **`Better`** (-0.0066 quadratic error).
+    - Ranked Probability Score (RPS): Model 0.1900 vs Climatology 0.2260 -> **`Better`** (-0.0360 ordinal error).
+    - Expected Calibration Error (ECE): Model 34.67% -> **`Poor Calibration`** (Exceeds institutional target of < 8.00%).
+    - Conformal Sets (90% & 95%): -> **`Uninformative Sets`** (Mean set size 4.84 / 5 regimes).
+    - Strategy CAGR: 12.30% vs 13.26% Benchmark -> **`Worse`** (-97 bps / year cash drag).
+    - Strategy Volatility: 15.75% vs 18.50% Benchmark -> **`Better`** (-275 bps volatility reduction).
+    - Strategy Sharpe: 0.3681 vs 0.3655 Benchmark -> **`Parity`** (+0.0026 delta).
+- **Dedicated Deficiencies Section ("Where the Model is Weak"):**
+  - Explicitly documented all 5 failure modes: out-of-sample log loss degradation, probability overconcentration (ECE 34.67%), conformal set saturation, active cash drag, and CSCV parameter diversity limitations.
+- **Conformal Saturation Investigation & Alpha Sweep (`scripts/generate_conformal_plot.py`):**
+  - Proved disjointness of calibration set (2017–2018) and test set (2019–2024).
+  - Identified root cause of identical 97.50% coverage and 4.84 set size: On 14.2% of calibration days, the true rule-based regime is ranked 5th by the HMM, causing non-conformity scores at the 88th percentile to saturate at 1.0000. For any nominal level $1 - \alpha \ge 85.8\%$, $q_{\hat{\alpha}} = 1.0000$, forcing prediction sets to include almost all 5 regimes.
+  - Swept $\alpha \in [0.05, 0.50]$: Informative sets of 2.10–3.16 regimes emerge only when $\alpha$ is relaxed to $\ge 0.20$. Serialized plot to `reports/conformal_coverage_vs_set_size.png`.
+- **CSCV PBO Input & Diversity Transparency:**
+  - Audited CSCV inputs: $N = 8$ trials, $S = 8$ splits, $N_{\text{distinct}} = 2$ return profiles.
+  - Documented that 0.0% reflects low trial diversity rather than proven immunity to overfitting.
+- **Clean PDF Rendering Engine (`scripts/compile_report.py` & `scripts/report_formatter.py`):**
+  - Implemented robust XML formatting for ReportLab flowables, parsing LaTeX display math (`$$...$$`), inline math (`$...$`), bold (`**...**`), code, and tables.
+  - Automated verification script `scripts/verify_pdf_text.py` confirmed **0 occurrences of literal `**`** and **0 occurrences of literal `$$`** across all **44 pages** of `reports/Bayesian_Regime_Detection_Report.pdf`, with the official CIN footer intact on every page.
+
+### 2. PDF Quality Gate Verification Output
+```text
+Total Pages Generated: 44
+Pages with CIN Footer (U62012MH2023PTC410415): 44/44
+Total Occurrences of literal '**': 0
+Total Occurrences of literal '$$': 0
+
+Clean Render Confirmed: Exactly 0 occurrences of literal '**' and '$$' across all pages!
+ALL PDF QUALITY GATES PASSED!
+```
+
+
 

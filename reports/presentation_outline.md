@@ -96,7 +96,7 @@
 - **Bayesian Model Averaging (BMA):** Dynamically weights models by out-of-sample log predictive likelihood via WAIC deltas.
 - **Constrained Meta-Stacking:** Simplex-constrained optimization minimizing out-of-fold Ranked Probability Score (RPS) subject to $\sum w_m = 1, w_m \ge 0$.
 - **Stacking Weights:** Bayesian HMM (0.342), Bayesian RS-VAR (0.218), Deep Ensemble (0.185), TimesFM (0.145), Chronos (0.110). Frequentist HMM barred due to pre-admission ECE threshold (8.45% vs 8.00% ceiling).
-- **Proper Scoring Rules:** Log loss `0.0000`, Brier score `0.0000`, RPS `0.0000`, ECE `0.00%` (superior to climatology RPS `0.0021` and ECE `12.02%`).
+- **Proper Scoring Rules:** Log loss 2.4460 (vs Climatology 2.3304; worse), Brier score 0.9966 (vs Climatology 1.0032; better), RPS 0.1900 (vs Climatology 0.2260; better), ECE 34.67% (poor calibration, target < 8.00%).
 
 ---
 
@@ -112,7 +112,7 @@
 - **The Miscalibration Hazard:** Raw neural networks underestimate tail risk under structural market shifts.
 - **Adaptive Prediction Sets (APS):** Emits conformal regime prediction sets guaranteeing finite-sample coverage at nominal $1 - \alpha = 90\%$ and $95\%$.
 - **Adaptive Conformal Inference (ACI):** Dynamically updates online miscoverage rate $\alpha_{t+1} = \alpha_t + \gamma(\alpha - \text{err}_t)$ to maintain valid empirical coverage.
-- **Empirical Coverage Audit:** Achieves **100.0%** coverage at 90% target (mean set size 1.02 regimes) and **100.0%** at 95% target, maintaining 100.0% coverage through COVID-19 crash and 2022 rate shock.
+- **Empirical Coverage Audit:** Achieves **97.50%** coverage at 90% and 95% nominal targets with mean set size 4.84/5 regimes (uninformative due to score saturation; informative sets of 2.10–3.16 regimes obtained at $\alpha \in [0.20, 0.40]$).
 
 ---
 

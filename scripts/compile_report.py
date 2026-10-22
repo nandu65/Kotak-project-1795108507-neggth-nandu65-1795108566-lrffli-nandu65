@@ -2,18 +2,33 @@
 Compile the complete 40+ page Master Institutional Research Report in both:
 1. Markdown: reports/report.md
 2. PDF: reports/Bayesian_Regime_Detection_Report.pdf
+
+Ensures:
+- Real bold text, tables, and mathematical typography (ReportLab XML markup)
+- Zero literal '**' or '$$' in the rendered document
+- Running Header and CIN Footer on every page
+- Exact page count reporting (>= 40 pages)
 """
 
 import os
+import re
 import sys
+from pathlib import Path
 import pypdf
+
+WORKSPACE = Path(r"D:\bayesian-regime-detection-APK")
+if str(WORKSPACE) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE))
+
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, HRFlowable, Preformatted
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, HRFlowable, Preformatted, Image
 )
 from reportlab.pdfgen import canvas
+
+from scripts.report_formatter import format_inline_markdown, format_math_to_xml
 
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -58,19 +73,18 @@ class NumberedCanvas(canvas.Canvas):
 
 def build_pdf_and_markdown(md_path, pdf_path):
     print("Building report content...")
-    # Read the markdown source
     with open(md_path, "r", encoding="utf-8") as f:
         md_text = f.read()
 
-    # Parse and construct ReportLab story
     styles = getSampleStyleSheet()
 
-    # Custom styles
+    # Brand Colors
     primary_color = colors.HexColor("#1A365D")   # Dark Navy
     secondary_color = colors.HexColor("#2B6CB0") # Slate Blue
     body_color = colors.HexColor("#2D3748")      # Charcoal
     accent_color = colors.HexColor("#C53030")    # Crimson Accent
     bg_code = colors.HexColor("#EDF2F7")
+    bg_eq = colors.HexColor("#F7FAFC")
 
     title_style = ParagraphStyle(
         'DocTitle',
@@ -79,7 +93,6 @@ def build_pdf_and_markdown(md_path, pdf_path):
         fontSize=24,
         leading=28,
         textColor=primary_color,
-        alignment=0,
         spaceAfter=10
     )
     subtitle_style = ParagraphStyle(
@@ -89,16 +102,7 @@ def build_pdf_and_markdown(md_path, pdf_path):
         fontSize=12,
         leading=16,
         textColor=secondary_color,
-        alignment=0,
         spaceAfter=15
-    )
-    meta_style = ParagraphStyle(
-        'DocMeta',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=9,
-        leading=13,
-        textColor=colors.HexColor("#4A5568")
     )
     h1_style = ParagraphStyle(
         'Heading1_Custom',
@@ -153,9 +157,20 @@ def build_pdf_and_markdown(md_path, pdf_path):
         'Code_Custom',
         parent=styles['Normal'],
         fontName='Courier',
-        fontSize=7.5,
-        leading=9.5,
+        fontSize=7.2,
+        leading=9.0,
         textColor=colors.HexColor("#1A202C")
+    )
+    eq_style = ParagraphStyle(
+        'Equation_Custom',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=9.5,
+        leading=13.5,
+        textColor=primary_color,
+        alignment=1, # Centered
+        spaceBefore=6,
+        spaceAfter=6
     )
     table_cell = ParagraphStyle(
         'TableCell',
@@ -175,8 +190,6 @@ def build_pdf_and_markdown(md_path, pdf_path):
     )
 
     story = []
-
-    # Process markdown lines into flowables
     lines = md_text.split('\n')
     i = 0
     in_code_block = False
@@ -188,24 +201,22 @@ def build_pdf_and_markdown(md_path, pdf_path):
         nonlocal table_rows
         if not table_rows:
             return
-        # Calculate column widths
         col_count = max(len(r) for r in table_rows)
-        # normalize row lengths
         norm_rows = []
         for r_idx, r in enumerate(table_rows):
             cur = list(r)
             while len(cur) < col_count:
                 cur.append("")
-            # Wrap in paragraphs
             p_row = []
             for c_idx, cell in enumerate(cur):
+                formatted = format_inline_markdown(cell)
                 if r_idx == 0:
-                    p_row.append(Paragraph(cell, table_header))
+                    p_row.append(Paragraph(formatted, table_header))
                 else:
-                    p_row.append(Paragraph(cell, table_cell))
+                    p_row.append(Paragraph(formatted, table_cell))
             norm_rows.append(p_row)
 
-        avail_width = 504 # 504 pt = 7 inches
+        avail_width = 504 # 7 inches
         col_w = avail_width / col_count
         t = Table(norm_rows, colWidths=[col_w] * col_count)
         t.setStyle(TableStyle([
@@ -228,9 +239,7 @@ def build_pdf_and_markdown(md_path, pdf_path):
         if not code_lines:
             return
         code_text = '\n'.join(code_lines)
-        # Preformatted flowable
         p = Preformatted(code_text, code_style)
-        # Wrap in a single-cell table for background box
         box = Table([[p]], colWidths=[504])
         box.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,-1), bg_code),
@@ -247,7 +256,7 @@ def build_pdf_and_markdown(md_path, pdf_path):
     while i < len(lines):
         line = lines[i]
 
-        # Check for code fence
+        # Code fences
         if line.strip().startswith('```'):
             if in_table:
                 flush_table()
@@ -266,13 +275,11 @@ def build_pdf_and_markdown(md_path, pdf_path):
             i += 1
             continue
 
-        # Check for markdown table
+        # Markdown tables
         stripped = line.strip()
         if stripped.startswith('|') and stripped.endswith('|'):
-            # Check if separator row like |---|---|
             parts = [p.strip() for p in stripped.split('|')[1:-1]]
             if all(set(p) <= set('-: ') for p in parts if p):
-                # separator row, skip
                 i += 1
                 continue
             table_rows.append(parts)
@@ -284,13 +291,13 @@ def build_pdf_and_markdown(md_path, pdf_path):
                 flush_table()
                 in_table = False
 
-        # Page break markers in markdown
+        # Page breaks
         if stripped == '<!-- PAGE_BREAK -->' or stripped == '\\pagebreak':
             story.append(PageBreak())
             i += 1
             continue
 
-        # Horizontal rule
+        # Horizontal rules
         if stripped == '---':
             story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#CBD5E0"), spaceBefore=6, spaceAfter=6))
             i += 1
@@ -298,50 +305,72 @@ def build_pdf_and_markdown(md_path, pdf_path):
 
         # Headings
         if stripped.startswith('# '):
-            text = stripped[2:].strip()
+            text = format_inline_markdown(stripped[2:].strip())
             story.append(Paragraph(text, title_style))
             i += 1
             continue
         elif stripped.startswith('## '):
-            text = stripped[3:].strip()
-            # If major chapter, give a clean page break before it unless at start
-            if any(text.startswith(prefix) for prefix in ["Chapter", "Section 1", "Section 2", "Section 3", "Section 4", "Section 5", "Section 6", "Section 7", "Section 8", "Section 9", "Section 10", "Section 11", "Section 12", "Section 13", "Executive Summary", "Table of Contents"]):
+            text = format_inline_markdown(stripped[3:].strip())
+            if any(text.startswith(prefix) for prefix in ["Chapter", "Section", "Executive Summary", "Table of Contents"]):
                 story.append(PageBreak())
             story.append(Paragraph(text, h1_style))
             i += 1
             continue
         elif stripped.startswith('### '):
-            text = stripped[4:].strip()
+            text = format_inline_markdown(stripped[4:].strip())
             story.append(Paragraph(text, h2_style))
             i += 1
             continue
         elif stripped.startswith('#### '):
-            text = stripped[5:].strip()
+            text = format_inline_markdown(stripped[5:].strip())
             story.append(Paragraph(text, h3_style))
+            i += 1
+            continue
+
+        # Display math equations: $$ ... $$
+        if stripped.startswith('$$'):
+            math_content = stripped
+            if stripped == '$$' or not (stripped.endswith('$$') and len(stripped) > 2):
+                # Multiline math block
+                math_lines = []
+                if stripped != '$$':
+                    math_lines.append(stripped[2:])
+                i += 1
+                while i < len(lines) and not lines[i].strip().endswith('$$'):
+                    math_lines.append(lines[i].strip())
+                    i += 1
+                if i < len(lines):
+                    last_line = lines[i].strip()
+                    if last_line != '$$':
+                        math_lines.append(last_line[:-2])
+                math_content = ' '.join(math_lines)
+            
+            clean_math = format_math_to_xml(math_content)
+            eq_p = Paragraph(f"<b>{clean_math}</b>", eq_style)
+            eq_box = Table([[eq_p]], colWidths=[504])
+            eq_box.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), bg_eq),
+                ('LEFTPADDING', (0,0), (-1,-1), 10),
+                ('RIGHTPADDING', (0,0), (-1,-1), 10),
+                ('TOPPADDING', (0,0), (-1,-1), 4),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")),
+            ]))
+            story.append(eq_box)
+            story.append(Spacer(1, 4))
             i += 1
             continue
 
         # Bullet points
         if stripped.startswith('- ') or stripped.startswith('* '):
-            text = "&bull; " + stripped[2:].strip()
-            # Format bold text
-            text = text.replace('**', '<b>', 1)
-            while '**' in text:
-                text = text.replace('**', '</b>', 1)
-                if '**' in text:
-                    text = text.replace('**', '<b>', 1)
+            text = "&bull; " + format_inline_markdown(stripped[2:].strip())
             story.append(Paragraph(text, bullet_style))
             i += 1
             continue
 
         # Blockquotes
         if stripped.startswith('> '):
-            text = stripped[2:].strip()
-            text = text.replace('**', '<b>', 1)
-            while '**' in text:
-                text = text.replace('**', '</b>', 1)
-                if '**' in text:
-                    text = text.replace('**', '<b>', 1)
+            text = format_inline_markdown(stripped[2:].strip())
             bq_style = ParagraphStyle(
                 'BQ',
                 parent=body_style,
@@ -356,29 +385,39 @@ def build_pdf_and_markdown(md_path, pdf_path):
             i += 1
             continue
 
-        # Blank line
+        # Image inclusion: ![caption](path)
+        img_match = re.match(r'!\[(.*?)\]\((.*?)\)', stripped)
+        if img_match:
+            caption, img_rel_path = img_match.group(1), img_match.group(2)
+            img_full_path = (WORKSPACE / img_rel_path).resolve()
+            if img_full_path.exists():
+                try:
+                    img_flowable = Image(str(img_full_path), width=480, height=270)
+                    story.append(img_flowable)
+                    if caption:
+                        cap_style = ParagraphStyle(
+                            'ImgCaption',
+                            parent=body_style,
+                            fontName='Helvetica-Oblique',
+                            fontSize=8,
+                            alignment=1, # Centered
+                            textColor=colors.HexColor("#718096"),
+                            spaceAfter=6
+                        )
+                        story.append(Paragraph(f"Figure: {caption}", cap_style))
+                    story.append(Spacer(1, 6))
+                except Exception as e:
+                    print(f"Warning: Failed to load image {img_full_path}: {e}")
+            i += 1
+            continue
+
+        # Blank lines
         if not stripped:
             i += 1
             continue
 
-        # Regular paragraph
-        text = stripped
-        # Simple inline formatting replacements
-        text = text.replace('&', '&amp;')
-        text = text.replace('<', '&lt;').replace('>', '&gt;')
-        # Restore any needed tags
-        text = text.replace('&lt;b&gt;', '<b>').replace('&lt;/b&gt;', '</b>')
-        # Markdown bold
-        while '**' in text:
-            text = text.replace('**', '<b>', 1)
-            if '**' in text:
-                text = text.replace('**', '</b>', 1)
-        # Markdown code `foo`
-        while '`' in text:
-            text = text.replace('`', '<font face="Courier" color="#C53030">', 1)
-            if '`' in text:
-                text = text.replace('`', '</font>', 1)
-
+        # Regular paragraphs
+        text = format_inline_markdown(stripped)
         story.append(Paragraph(text, body_style))
         i += 1
 
@@ -411,4 +450,3 @@ if __name__ == "__main__":
     pdf_file = os.path.join(base_dir, "reports", "Bayesian_Regime_Detection_Report.pdf")
     pages = build_pdf_and_markdown(md_file, pdf_file)
     print(f"Compilation complete: {pages} pages generated.")
-

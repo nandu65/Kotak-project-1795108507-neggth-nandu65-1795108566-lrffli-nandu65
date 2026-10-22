@@ -112,6 +112,8 @@
     "coverage_95": 0.975,
     "mean_set_size_90": 4.84,
     "mean_set_size_95": 4.84,
+    "is_uninformative_90": true,
+    "is_uninformative_95": true,
     "covid_2020_coverage_90": 0.987,
     "covid_2020_coverage_95": 0.987,
     "rate_shock_2022_coverage_90": 0.9677,
@@ -124,7 +126,90 @@
       "2": 1.0,
       "3": 0.9335,
       "4": 1.0
-    }
+    },
+    "alpha_sweep": [
+      {
+        "alpha": 0.05,
+        "nominal_coverage": 0.95,
+        "empirical_coverage": 0.975,
+        "mean_set_size": 4.84,
+        "q_hat": 1.0,
+        "is_uninformative": true
+      },
+      {
+        "alpha": 0.1,
+        "nominal_coverage": 0.9,
+        "empirical_coverage": 0.975,
+        "mean_set_size": 4.84,
+        "q_hat": 1.0,
+        "is_uninformative": true
+      },
+      {
+        "alpha": 0.15,
+        "nominal_coverage": 0.85,
+        "empirical_coverage": 0.8173,
+        "mean_set_size": 3.89,
+        "q_hat": 0.9999,
+        "is_uninformative": false
+      },
+      {
+        "alpha": 0.2,
+        "nominal_coverage": 0.8,
+        "empirical_coverage": 0.7043,
+        "mean_set_size": 3.16,
+        "q_hat": 0.976,
+        "is_uninformative": false
+      },
+      {
+        "alpha": 0.25,
+        "nominal_coverage": 0.75,
+        "empirical_coverage": 0.6637,
+        "mean_set_size": 2.9,
+        "q_hat": 0.9616,
+        "is_uninformative": false
+      },
+      {
+        "alpha": 0.3,
+        "nominal_coverage": 0.7,
+        "empirical_coverage": 0.5656,
+        "mean_set_size": 2.36,
+        "q_hat": 0.9134,
+        "is_uninformative": false
+      },
+      {
+        "alpha": 0.35,
+        "nominal_coverage": 0.65,
+        "empirical_coverage": 0.5196,
+        "mean_set_size": 2.21,
+        "q_hat": 0.8979,
+        "is_uninformative": false
+      },
+      {
+        "alpha": 0.4,
+        "nominal_coverage": 0.6,
+        "empirical_coverage": 0.4865,
+        "mean_set_size": 2.1,
+        "q_hat": 0.8861,
+        "is_uninformative": false
+      },
+      {
+        "alpha": 0.45,
+        "nominal_coverage": 0.55,
+        "empirical_coverage": 0.4526,
+        "mean_set_size": 2.02,
+        "q_hat": 0.8774,
+        "is_uninformative": false
+      },
+      {
+        "alpha": 0.5,
+        "nominal_coverage": 0.5,
+        "empirical_coverage": 0.4154,
+        "mean_set_size": 1.88,
+        "q_hat": 0.8608,
+        "is_uninformative": false
+      }
+    ],
+    "root_cause_saturation": "Unsupervised HMM places true rule-based regime in rank 5 on 14.2% of calibration days. The 88th percentile of calibration scores is 1.0000, forcing q_hat to saturate at 1.0000 for any 1 - alpha >= 85.8%, resulting in uninformative sets containing 4.84 out of 5 regimes."
   },
   "backtest_2019_2024": {
     "strategy_cagr": 0.123,
@@ -146,7 +231,12 @@
     "annualized_turnover": 0.0502,
     "transaction_cost_bps": 0.75,
     "deflated_sharpe_ratio": 0.073,
-    "probability_of_backtest_overfitting": 0.0
+    "probability_of_backtest_overfitting": 0.0,
+    "cscv_n_trials": 8,
+    "cscv_n_splits": 8,
+    "cscv_n_distinct_strategies": 2,
+    "pbo_is_statistically_meaningful": true,
+    "pbo_interpretation": "Evaluated via Combinatorially Symmetric Cross-Validation (CSCV; Bailey et al., 2017) across 8 trials and 8 splits. Because equity allocation bounds rarely bind outside of acute drawdowns, only 2 distinct strategy return profiles emerge. Consequently, the empirical PBO of 0.0% reflects limited parameter diversity rather than confirmed immunity to overfitting."
   },
   "crisis_stress_replays": {
     "C1_2020_COVID_Crash": {
