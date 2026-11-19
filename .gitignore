@@ -31,3 +31,7 @@ mlruns/
 .DS_Store
 Thumbs.db
 *.log
+
+# Scratch & Temporary
+scratch/
+

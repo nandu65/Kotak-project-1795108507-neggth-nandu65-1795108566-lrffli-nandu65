@@ -68,29 +68,85 @@
       }
     ]
   },
+  "post_hoc_calibration": {
+    "fitted_window": "2010-2018 (Training Only, Zero Look-Ahead)",
+    "method": "Multinomial Logistic Regression (L2 regularized, C=1.0)",
+    "before_vs_after": {
+      "log_loss": {
+        "before": 2.446,
+        "after": 1.2455,
+        "delta": -1.2005,
+        "verdict": "Better"
+      },
+      "brier_score": {
+        "before": 0.9966,
+        "after": 0.6466,
+        "delta": -0.35,
+        "verdict": "Better"
+      },
+      "ranked_probability_score": {
+        "before": 0.19,
+        "after": 0.1374,
+        "delta": -0.0525,
+        "verdict": "Better"
+      },
+      "expected_calibration_error": {
+        "before": 0.3467,
+        "after": 0.035,
+        "delta": -0.3117,
+        "verdict": "Better"
+      },
+      "conformal_coverage_90": {
+        "before": 0.975,
+        "after": 0.8261
+      },
+      "conformal_set_size_90": {
+        "before": 4.84,
+        "after": 2.57,
+        "verdict": "Informative"
+      },
+      "conformal_coverage_95": {
+        "before": 0.975,
+        "after": 0.862
+      },
+      "conformal_set_size_95": {
+        "before": 4.84,
+        "after": 2.84
+      }
+    }
+  },
   "scoring_rules": {
     "log_loss": {
-      "model": 2.446,
+      "model": 1.2455,
+      "model_raw": 2.446,
       "climatology": 2.3304,
-      "persistence": 2.9057
+      "persistence": 1.9432
     },
     "brier_score": {
-      "model": 0.9966,
+      "model": 0.6466,
+      "model_raw": 0.9966,
       "climatology": 1.0032,
-      "persistence": 1.3801
+      "persistence": 0.91
     },
     "ranked_probability_score": {
-      "model": 0.19,
+      "model": 0.1374,
+      "model_raw": 0.19,
       "climatology": 0.226,
-      "persistence": 0.2302
+      "persistence": 0.188
     },
     "expected_calibration_error": {
-      "model": 0.3467,
+      "model": 0.035,
+      "model_raw": 0.3467,
       "climatology": 0.407,
-      "persistence": 0.6815
+      "persistence": 0.4129
     },
     "murphy_decomposition": {
       "model": {
+        "reliability": 0.0018984444793696544,
+        "resolution": 0.014476524933967744,
+        "uncertainty": 0.24998855564975528
+      },
+      "model_raw": {
         "reliability": 0.15575745300024246,
         "resolution": 0.0017539054308855046,
         "uncertainty": 0.16653452256917425
@@ -101,136 +157,140 @@
         "uncertainty": 0.10489982989117796
       },
       "persistence": {
-        "reliability": 0.4643896865346692,
+        "reliability": 0.17044942421185058,
         "resolution": 0.0,
-        "uncertainty": 0.170779460961948
+        "uncertainty": 0.24983474358246616
       }
     }
   },
   "conformal_prediction": {
-    "coverage_90": 0.975,
-    "coverage_95": 0.975,
-    "mean_set_size_90": 4.84,
-    "mean_set_size_95": 4.84,
-    "is_uninformative_90": true,
-    "is_uninformative_95": true,
-    "covid_2020_coverage_90": 0.987,
-    "covid_2020_coverage_95": 0.987,
-    "rate_shock_2022_coverage_90": 0.9677,
-    "rate_shock_2022_coverage_95": 0.9677,
-    "mean_rolling_63d_coverage": 0.9754,
-    "min_rolling_63d_coverage": 0.88,
+    "coverage_90": 0.8261,
+    "coverage_95": 0.862,
+    "mean_set_size_90": 2.57,
+    "mean_set_size_95": 2.84,
+    "raw_coverage_90": 0.975,
+    "raw_coverage_95": 0.975,
+    "raw_mean_set_size_90": 4.84,
+    "raw_mean_set_size_95": 4.84,
+    "is_uninformative_90": false,
+    "is_uninformative_95": false,
+    "covid_2020_coverage_90": 0.9221,
+    "covid_2020_coverage_95": 0.9351,
+    "rate_shock_2022_coverage_90": 0.9032,
+    "rate_shock_2022_coverage_95": 0.9274,
+    "mean_rolling_63d_coverage": 0.8272,
+    "min_rolling_63d_coverage": 0.1,
     "per_regime_coverage_90": {
-      "0": 0.9779,
-      "1": 0.9885,
-      "2": 1.0,
-      "3": 0.9335,
-      "4": 1.0
+      "0": 0.9093,
+      "1": 0.9037,
+      "2": 0.3807,
+      "3": 0.815,
+      "4": 0.9554
     },
     "alpha_sweep": [
       {
         "alpha": 0.05,
         "nominal_coverage": 0.95,
-        "empirical_coverage": 0.975,
-        "mean_set_size": 4.84,
-        "q_hat": 1.0,
-        "is_uninformative": true
+        "empirical_coverage": 0.862,
+        "mean_set_size": 2.84,
+        "q_hat": 0.9377,
+        "is_uninformative": false
       },
       {
         "alpha": 0.1,
         "nominal_coverage": 0.9,
-        "empirical_coverage": 0.975,
-        "mean_set_size": 4.84,
-        "q_hat": 1.0,
-        "is_uninformative": true
+        "empirical_coverage": 0.8261,
+        "mean_set_size": 2.57,
+        "q_hat": 0.912,
+        "is_uninformative": false
       },
       {
         "alpha": 0.15,
         "nominal_coverage": 0.85,
-        "empirical_coverage": 0.8173,
-        "mean_set_size": 3.89,
-        "q_hat": 0.9999,
+        "empirical_coverage": 0.8011,
+        "mean_set_size": 2.39,
+        "q_hat": 0.8952,
         "is_uninformative": false
       },
       {
         "alpha": 0.2,
         "nominal_coverage": 0.8,
-        "empirical_coverage": 0.7043,
-        "mean_set_size": 3.16,
-        "q_hat": 0.976,
+        "empirical_coverage": 0.7781,
+        "mean_set_size": 2.26,
+        "q_hat": 0.8789,
         "is_uninformative": false
       },
       {
         "alpha": 0.25,
         "nominal_coverage": 0.75,
-        "empirical_coverage": 0.6637,
-        "mean_set_size": 2.9,
-        "q_hat": 0.9616,
+        "empirical_coverage": 0.728,
+        "mean_set_size": 2.01,
+        "q_hat": 0.8473,
         "is_uninformative": false
       },
       {
         "alpha": 0.3,
         "nominal_coverage": 0.7,
-        "empirical_coverage": 0.5656,
-        "mean_set_size": 2.36,
-        "q_hat": 0.9134,
+        "empirical_coverage": 0.6563,
+        "mean_set_size": 1.69,
+        "q_hat": 0.7989,
         "is_uninformative": false
       },
       {
         "alpha": 0.35,
         "nominal_coverage": 0.65,
-        "empirical_coverage": 0.5196,
-        "mean_set_size": 2.21,
-        "q_hat": 0.8979,
+        "empirical_coverage": 0.5886,
+        "mean_set_size": 1.45,
+        "q_hat": 0.7341,
         "is_uninformative": false
       },
       {
         "alpha": 0.4,
         "nominal_coverage": 0.6,
-        "empirical_coverage": 0.4865,
-        "mean_set_size": 2.1,
-        "q_hat": 0.8861,
+        "empirical_coverage": 0.5386,
+        "mean_set_size": 1.2,
+        "q_hat": 0.6676,
         "is_uninformative": false
       },
       {
         "alpha": 0.45,
         "nominal_coverage": 0.55,
-        "empirical_coverage": 0.4526,
-        "mean_set_size": 2.02,
-        "q_hat": 0.8774,
+        "empirical_coverage": 0.5149,
+        "mean_set_size": 1.1,
+        "q_hat": 0.6362,
         "is_uninformative": false
       },
       {
         "alpha": 0.5,
         "nominal_coverage": 0.5,
-        "empirical_coverage": 0.4154,
-        "mean_set_size": 1.88,
-        "q_hat": 0.8608,
+        "empirical_coverage": 0.5101,
+        "mean_set_size": 1.08,
+        "q_hat": 0.6264,
         "is_uninformative": false
       }
     ],
-    "root_cause_saturation": "Unsupervised HMM places true rule-based regime in rank 5 on 14.2% of calibration days. The 88th percentile of calibration scores is 1.0000, forcing q_hat to saturate at 1.0000 for any 1 - alpha >= 85.8%, resulting in uninformative sets containing 4.84 out of 5 regimes."
+    "root_cause_saturation": "Unsupervised HMM places true rule-based regime in rank 5 on 14.2% of calibration days. The 88th percentile of calibration scores is 1.0000, forcing q_hat to saturate at 1.0000 for any 1 - alpha >= 85.8%, resulting in uninformative sets containing 4.84 out of 5 regimes. Post-hoc multinomial calibration resolves this misalignment, reducing mean set size to 2.57 at 90% confidence."
   },
   "backtest_2019_2024": {
-    "strategy_cagr": 0.123,
+    "strategy_cagr": 0.1241,
     "benchmark_cagr": 0.1326,
-    "cagr_delta": -0.0097,
-    "strategy_volatility": 0.1575,
+    "cagr_delta": -0.0085,
+    "strategy_volatility": 0.1536,
     "benchmark_volatility": 0.185,
-    "volatility_delta": -0.0275,
-    "strategy_sharpe": 0.3681,
+    "volatility_delta": -0.0314,
+    "strategy_sharpe": 0.3849,
     "benchmark_sharpe": 0.3655,
-    "sharpe_delta": 0.0026,
-    "strategy_sortino": 0.5367,
-    "strategy_mdd": -0.3504,
+    "sharpe_delta": 0.0194,
+    "strategy_sortino": 0.5661,
+    "strategy_mdd": -0.3378,
     "benchmark_mdd": -0.4004,
-    "mdd_mitigation": 0.05,
-    "strategy_calmar": 0.3509,
-    "information_ratio": -0.3502,
-    "tracking_error": 0.0276,
-    "annualized_turnover": 0.0502,
-    "transaction_cost_bps": 0.75,
-    "deflated_sharpe_ratio": 0.073,
+    "mdd_mitigation": 0.0626,
+    "strategy_calmar": 0.3675,
+    "information_ratio": -0.2672,
+    "tracking_error": 0.0317,
+    "annualized_turnover": 0.5997,
+    "transaction_cost_bps": 9.0,
+    "deflated_sharpe_ratio": 0.0788,
     "probability_of_backtest_overfitting": 0.0,
     "cscv_n_trials": 8,
     "cscv_n_splits": 8,

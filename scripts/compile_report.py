@@ -151,7 +151,29 @@ def build_pdf_and_markdown(md_path, pdf_path):
         parent=body_style,
         leftIndent=15,
         firstLineIndent=-10,
-        spaceAfter=4
+        leading=11.5,
+        spaceAfter=2
+    )
+    toc_bullet_style = ParagraphStyle(
+        'TOC_Bullet',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=7.8,
+        leading=9.5,
+        textColor=body_color,
+        leftIndent=14,
+        firstLineIndent=-10,
+        spaceAfter=0.6
+    )
+    toc_item_style = ParagraphStyle(
+        'TOC_Item',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8.2,
+        leading=10.0,
+        textColor=primary_color,
+        spaceBefore=1.8,
+        spaceAfter=0.6
     )
     code_style = ParagraphStyle(
         'Code_Custom',
@@ -253,6 +275,17 @@ def build_pdf_and_markdown(md_path, pdf_path):
         story.append(Spacer(1, 6))
         code_lines = []
 
+    def add_page_break():
+        for el in reversed(story):
+            if isinstance(el, (Spacer, HRFlowable)):
+                continue
+            if isinstance(el, PageBreak):
+                return
+            break
+        if story:
+            story.append(PageBreak())
+
+    in_toc = False
     while i < len(lines):
         line = lines[i]
 
@@ -293,7 +326,8 @@ def build_pdf_and_markdown(md_path, pdf_path):
 
         # Page breaks
         if stripped == '<!-- PAGE_BREAK -->' or stripped == '\\pagebreak':
-            story.append(PageBreak())
+            in_toc = False
+            add_page_break()
             i += 1
             continue
 
@@ -311,8 +345,10 @@ def build_pdf_and_markdown(md_path, pdf_path):
             continue
         elif stripped.startswith('## '):
             text = format_inline_markdown(stripped[3:].strip())
-            if any(text.startswith(prefix) for prefix in ["Chapter", "Section", "Executive Summary", "Table of Contents"]):
-                story.append(PageBreak())
+            if "Table of Contents" in stripped:
+                in_toc = True
+            elif in_toc:
+                in_toc = False
             story.append(Paragraph(text, h1_style))
             i += 1
             continue
@@ -364,7 +400,8 @@ def build_pdf_and_markdown(md_path, pdf_path):
         # Bullet points
         if stripped.startswith('- ') or stripped.startswith('* '):
             text = "&bull; " + format_inline_markdown(stripped[2:].strip())
-            story.append(Paragraph(text, bullet_style))
+            st = toc_bullet_style if in_toc else bullet_style
+            story.append(Paragraph(text, st))
             i += 1
             continue
 
@@ -418,7 +455,10 @@ def build_pdf_and_markdown(md_path, pdf_path):
 
         # Regular paragraphs
         text = format_inline_markdown(stripped)
-        story.append(Paragraph(text, body_style))
+        if in_toc and re.match(r'^\d+\.\s', stripped):
+            story.append(Paragraph(text, toc_item_style))
+        else:
+            story.append(Paragraph(text, body_style))
         i += 1
 
     if in_table:
